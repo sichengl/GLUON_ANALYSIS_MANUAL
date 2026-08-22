@@ -24,10 +24,11 @@ operator = "TXTXpTYTYm2XYXY"
 INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple"
                / f"ratio_jk_{frame}")
 TWOPT_FIT = SCRIPT_DIR.parent / "2PT_simple" / "twopt_fit_results.h5"
+TWOPT_TAG = "nstate3_t4-15_svd1e-12"     # must match `tag` in 2pt_fit.py
 OUTPUT_DIR = SCRIPT_DIR / f"bare_matrix_element_{frame}"
 PLOT_DIR = SCRIPT_DIR / "ratio_fit_plots"
 
-tgf_list = [ 30]
+tgf_list = [20,25,30,35,40]
 pf_list = [(0, 0, pz) for pz in range(0, 7)]
 q_list = [(0, 0, 0)]
 
@@ -37,11 +38,11 @@ tau_skip = 1
 w_plot_list = [0, 2, 4, 6, 8]
 
 DE_WIDTH_FACTOR = 5.0          
-A_PRIOR_WIDTH = 1e4
+A_PRIOR_WIDTH = 2
 M00_PRIOR_WIDTH = 2.0
 SVDCUT = 1e-7
 MAXIT = 20000
-N_WORKERS = 8
+N_WORKERS = 30
 
 tag = (f"tsep{tsep_fit_list[0]}-{tsep_fit_list[-1]}_svd{SVDCUT:.0e}"
        f"_dEf{DE_WIDTH_FACTOR:g}".replace(".", "p"))
@@ -118,17 +119,17 @@ def fit_one_point(tgf, pf, q):
     forward = all(c == 0 for c in q)
     pi = tuple(int(pf[k] + q[k]) for k in range(3))
     with h5py.File(TWOPT_FIT, "r") as f:
-        E = f["E_jk"][:]
-        moms = [tuple(p) for p in f["momentum_list"][:].tolist()]
-        imom_f = moms.index(tuple(pf))
-        gap_f_jk = E[imom_f, :, 1] - E[imom_f, :, 0]
-        gap_f_mean, gap_f_err = jk(gap_f_jk)
-    if forward:
-        gap_i_jk, gap_i_mean, gap_i_err = gap_f_jk, gap_f_mean, gap_f_err
-    else:
-        imom_i = moms.index(pi)
-        gap_i_jk = E[imom_i, :, 1] - E[imom_i, :, 0]
-        gap_i_mean, gap_i_err = jk(gap_i_jk)
+        g = f[TWOPT_TAG]
+        gap_f_jk = g[f"p{pf[0]}_{pf[1]}_{pf[2]}"]["dE_jk"][:, 1]
+        if forward:
+            gap_i_jk = gap_f_jk
+        else:
+            gap_i_jk = g[f"p{pi[0]}_{pi[1]}_{pi[2]}"]["dE_jk"][:, 1]
+    gap_f_mean, gap_f_err = jk(gap_f_jk)
+    gap_i_mean, gap_i_err = jk(gap_i_jk)
+    if len(gap_f_jk) != n_jk:
+        print(f"  WARNING {label}: 2pt has {len(gap_f_jk)} samples, "
+              f"ratio has {n_jk}", flush=True)
     print(f"{label}: {n_pt} points, {n_jk} samples, 2pt gap "
           f"pi{pi} {gap_i_mean:.3f} +- {gap_i_err:.3f}, "
           f"pf{tuple(pf)} {gap_f_mean:.3f} +- {gap_f_err:.3f}, "
@@ -175,6 +176,7 @@ def fit_one_point(tgf, pf, q):
         f.create_dataset("gap_f_prior_center_jk", data=gap_f_jk)
         f.attrs["dim_bare_matrix_element_jk"] = "jk,w_index"
         f.attrs["operator"] = operator
+        f.attrs["twopt_tag"] = TWOPT_TAG
         f.attrs["frame"] = frame
         f.attrs["tgf"] = tgf
         f.attrs["pf"] = np.array(pf, dtype=np.int64)

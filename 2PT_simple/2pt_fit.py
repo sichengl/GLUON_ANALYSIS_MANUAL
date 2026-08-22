@@ -12,9 +12,9 @@ FIT_PATH = Path("./twopt_fit_results.h5")
 Gs, Gt = 32, 96
 
 MOM_LIST = [(0, 0, pz) for pz in range(7)]
-TMIN, TMAX = 4, 15
+TMIN, TMAX = 6, 15
 TSEP_LIST = [4, 5, 6]  #(c1*e^-E1tsep) / (c0*e^-E0tsep) will be printed out
-N_STATES = 3
+N_STATES = 2
 SVDCUT = 1e-12
 
 MASS = 0.14
