@@ -8,7 +8,7 @@ PT2_PATH = Path("./twopt_source_averaged.h5")
 FIT_PATH = Path("./twopt_fit_results.h5")
 Gs, Gt = 32, 96
 
-PZ_LIST = [0,1,2,3,4,5,6]
+MOM_LIST = [(0, 0, pz) for pz in range(7)]
 TMIN, TMAX = 4, 15
 TSEP_LIST = [4, 5, 6]
 N_STATES = 3
@@ -33,10 +33,10 @@ def twopt_model(t, p):
     return corr
 
 
-def make_prior(n_states, pz):
-    p_lat = 2.0 * np.pi * pz / Gs
+def make_prior(n_states, mom):
+    p_lat = 2.0 * np.pi * np.array(mom, dtype=float) / Gs
     e0 = 2.0 * np.arcsinh(np.sqrt(np.sinh(M0 / 2.0) ** 2
-                                  + np.sin(p_lat / 2.0) ** 2))
+                                  + np.sum(np.sin(p_lat / 2.0) ** 2)))
     gaps = [DE1_PRIOR, DE2_PRIOR][:n_states - 1]
     dE = gv.gvar([e0] + [gv.mean(g) for g in gaps],
                  [E0_WIDTH] + [gv.sdev(g) for g in gaps])
@@ -58,23 +58,22 @@ with h5py.File(PT2_PATH, "r") as f:
 
 mom_to_idx = {tuple(p): i for i, p in enumerate(moms.tolist())}
 t = np.arange(TMIN, TMAX + 1)
-n_pz = len(PZ_LIST)
+n_mom = len(MOM_LIST)
 n_jk = pion.shape[0]
 
-E_central = np.zeros((n_pz, N_STATES))
-E_central_sdev = np.zeros((n_pz, N_STATES))
-C_central = np.zeros((n_pz, N_STATES))
-C_central_sdev = np.zeros((n_pz, N_STATES))
-chi2dof_central = np.zeros(n_pz)
-Q_central = np.zeros(n_pz)
+E_central = np.zeros((n_mom, N_STATES))
+E_central_sdev = np.zeros((n_mom, N_STATES))
+C_central = np.zeros((n_mom, N_STATES))
+C_central_sdev = np.zeros((n_mom, N_STATES))
+chi2dof_central = np.zeros(n_mom)
+Q_central = np.zeros(n_mom)
 
-E_jk = np.zeros((n_pz, n_jk, N_STATES))
-C_jk = np.zeros((n_pz, n_jk, N_STATES))
-chi2dof_jk = np.zeros((n_pz, n_jk))
-Q_jk = np.zeros((n_pz, n_jk))
+E_jk = np.zeros((n_mom, n_jk, N_STATES))
+C_jk = np.zeros((n_mom, n_jk, N_STATES))
+chi2dof_jk = np.zeros((n_mom, n_jk))
+Q_jk = np.zeros((n_mom, n_jk))
 
-for ipz, pz in enumerate(PZ_LIST):
-    pf = (0, 0, pz)
+for imom, pf in enumerate(MOM_LIST):
     ipf = mom_to_idx[pf]
     C2_pf = pion[..., ipf, :].real
 
@@ -83,20 +82,19 @@ for ipz, pz in enumerate(PZ_LIST):
     cov = cov_of_mean(samples)
     jk = (samples.sum(axis=0) - samples) / (n_jk - 1)
 
-    prior = make_prior(N_STATES, pz)
+    prior = make_prior(N_STATES, pf)
 
     fit = lsqfit.nonlinear_fit(data=(t, gv.gvar(mean, cov)), fcn=twopt_model,
                                prior=prior, svdcut=SVDCUT)
     E = np.cumsum(fit.p["dE"])
-    E_central[ipz] = gv.mean(E)
-    E_central_sdev[ipz] = gv.sdev(E)
-    C_central[ipz] = gv.mean(fit.p["c"])
-    C_central_sdev[ipz] = gv.sdev(fit.p["c"])
-    chi2dof_central[ipz] = fit.chi2 / fit.dof
-    Q_central[ipz] = fit.Q
+    E_central[imom] = gv.mean(E)
+    E_central_sdev[imom] = gv.sdev(E)
+    C_central[imom] = gv.mean(fit.p["c"])
+    C_central_sdev[imom] = gv.sdev(fit.p["c"])
+    chi2dof_central[imom] = fit.chi2 / fit.dof
+    Q_central[imom] = fit.Q
 
-    print(f"\npz = {pz}   pf = {pf}   n_states = {N_STATES}   "
-          f"t = {TMIN}..{TMAX}")
+    print(f"\npf = {pf}   n_states = {N_STATES}   t = {TMIN}..{TMAX}")
     print(fit.format(maxline=True))
 
     ratio = (fit.p["c"][1] / fit.p["c"][0]
@@ -109,23 +107,23 @@ for ipz, pz in enumerate(PZ_LIST):
         fit_jk = lsqfit.nonlinear_fit(data=(t, gv.gvar(jk[i], cov)),
                                       fcn=twopt_model, prior=prior,
                                       svdcut=SVDCUT, p0=p0)
-        E_jk[ipz, i] = np.cumsum(gv.mean(fit_jk.p["dE"]))
-        C_jk[ipz, i] = gv.mean(fit_jk.p["c"])
-        chi2dof_jk[ipz, i] = fit_jk.chi2 / fit_jk.dof
-        Q_jk[ipz, i] = fit_jk.Q
+        E_jk[imom, i] = np.cumsum(gv.mean(fit_jk.p["dE"]))
+        C_jk[imom, i] = gv.mean(fit_jk.p["c"])
+        chi2dof_jk[imom, i] = fit_jk.chi2 / fit_jk.dof
+        Q_jk[imom, i] = fit_jk.Q
         if PROGRESS_EVERY and (i + 1) % PROGRESS_EVERY == 0:
             print(f"  jackknife {i + 1}/{n_jk}", flush=True)
 
     E_jk_err = np.sqrt((n_jk - 1) / n_jk
-                       * np.sum((E_jk[ipz] - E_jk[ipz].mean(axis=0)) ** 2,
+                       * np.sum((E_jk[imom] - E_jk[imom].mean(axis=0)) ** 2,
                                 axis=0))
-    print(f"E0 central = {E_central[ipz, 0]:.6f} "
-          f"+- {E_central_sdev[ipz, 0]:.6f} (fit)   "
+    print(f"E0 central = {E_central[imom, 0]:.6f} "
+          f"+- {E_central_sdev[imom, 0]:.6f} (fit)   "
           f"+- {E_jk_err[0]:.6f} (jackknife)   "
-          f"chi2/dof = {chi2dof_central[ipz]:.2f}")
+          f"chi2/dof = {chi2dof_central[imom]:.2f}")
 
 with h5py.File(FIT_PATH, "w") as f:
-    f.create_dataset("pz_list", data=np.asarray(PZ_LIST, dtype=np.int64))
+    f.create_dataset("momentum_list", data=np.array(MOM_LIST, dtype=np.int64))
     f.create_dataset("E_central", data=E_central)
     f.create_dataset("E_central_sdev", data=E_central_sdev)
     f.create_dataset("C_central", data=C_central)
