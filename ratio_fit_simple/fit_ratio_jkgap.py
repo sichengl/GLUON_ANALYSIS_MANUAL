@@ -36,7 +36,6 @@ tsep_fit_list = [4,5,6, 7, 8, 9, 10]
 tau_skip = 1
 w_plot_list = [0, 2, 4, 6, 8]
 
-AMP_WIDTH = 5.0                  
 DE_WIDTH_FACTOR = 5.0          
 A_PRIOR_WIDTH = 1e4
 M00_PRIOR_WIDTH = 2.0
@@ -48,12 +47,12 @@ tag = (f"tsep{tsep_fit_list[0]}-{tsep_fit_list[-1]}_svd{SVDCUT:.0e}"
        f"_dEf{DE_WIDTH_FACTOR:g}".replace(".", "p"))
 
 
-def jk(values,jack_axis=0):
-    """Jackknife mean and error over axis 0."""
-    n = values.shape[0]
-    mean = values.mean(axis=0)
-    return mean, np.sqrt((n - 1.0) / n * np.sum((values - mean) ** 2, axis=jack_axis))
-
+def jk(values, jack_axis=0):
+    """Jackknife mean and error over jack_axis."""
+    v = np.moveaxis(values, jack_axis, 0)
+    n = v.shape[0]
+    mean = v.mean(axis=0)
+    return mean, np.sqrt((n - 1.0) / n * np.sum((v - mean) ** 2, axis=0))
 
 def ratio_model(x, p):
     """input data-poins x = (tsep,tau,w) and prior; output value of that data-point"""
@@ -95,7 +94,7 @@ def fit_one_point(tgf, pf, q):
         w_all = list(f["w_list"][:])
         tsep_all = list(f["tsep_list"][:])
         operator_str_list = [s.decode() for s in f["operator_names"][:]]
-        iop = operator_str_list.index(operator  #get the index of the needed operator)
+        iop = operator_str_list.index(operator)  #get the index of the needed operator
 
     w_index, tau_all, T_all, vector_data = [], [], [], []
     
@@ -109,7 +108,7 @@ def fit_one_point(tgf, pf, q):
                 vector_data.append(ratio_jk[:, iop, w_all.index(w),tsep_all.index(tsep), tau].real)
     
     #x is the dictionary of coordinates of used data-points 
-    x = {"w_index": np.array(w_index), "tau": np.array(tau_all),"T": np.array(T_all)}
+    x = {"w_index": np.array(w_index), "tau": np.array(tau_all),"tsep": np.array(T_all)}
     
     samples = np.stack(vector_data, axis=1) #(jackknife_index,data_point_index)
     n_jk, n_pt = samples.shape
@@ -172,7 +171,8 @@ def fit_one_point(tgf, pf, q):
         f.create_dataset("M00_jk_mean", data=M00_mean)
         f.create_dataset("M00_jk_err", data=M00_err)
         f.create_dataset("w_list", data=np.array(w_fit_list, dtype=np.int64))
-        f.create_dataset("gap_prior_center_jk", data=gap_jk)
+        f.create_dataset("gap_i_prior_center_jk", data=gap_i_jk)
+        f.create_dataset("gap_f_prior_center_jk", data=gap_f_jk)
         f.attrs["dim_bare_matrix_element_jk"] = "jk,w_index"
         f.attrs["operator"] = operator
         f.attrs["frame"] = frame
@@ -181,11 +181,13 @@ def fit_one_point(tgf, pf, q):
         f.attrs["q"] = np.array(q, dtype=np.int64)
         f.attrs["gap_prior"] = (f"2pt E1-E0 per sample, width "
                                 f"{DE_WIDTH_FACTOR} x its jackknife error")
-        f.attrs["gap_prior_width"] = width
+        f.attrs["gap_i_prior_width"] = DE_WIDTH_FACTOR * gap_i_err
+        f.attrs["gap_f_prior_width"] = DE_WIDTH_FACTOR * gap_f_err
+        f.attrs["pi"] = np.array(pi, dtype=np.int64)
         f.attrs["tsep_fit_list"] = np.array(tsep_fit_list, dtype=np.int64)
         f.attrs["tau_skip"] = tau_skip
         f.attrs["svdcut"] = SVDCUT
-        f.attrs["svdn"] = int(getattr(central, "svdn", 0))
+        f.attrs["svdn"] = int(getattr(central_fit, "svdn", 0))
         f.attrs["chi2dof"] = float(chi2dof.mean())
         f.attrs["Q"] = float(Q.mean())
 
@@ -202,7 +204,7 @@ def plot_fit(x, samples, params, chi2dof, q_value, tgf, pf, q):
     for icol, w in enumerate(ws):
         ax, iw = axes[0][icol], w_fit_list.index(w)
         for itsep, tsep in enumerate(tsep_fit_list):
-            sel = (x["w_index"] == iw) & (x["T"] == tsep)
+            sel = (x["w_index"] == iw) & (x["tsep"] == tsep)
             ax.errorbar(x["tau"][sel] - 0.5 * tsep, data_mean[sel],
                         yerr=data_err[sel], marker="o", ls="none", ms=4,
                         capsize=3, color=f"C{itsep}", label=f"tsep={tsep}")
