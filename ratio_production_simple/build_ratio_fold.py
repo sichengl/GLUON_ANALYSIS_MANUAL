@@ -21,23 +21,26 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # must match the frame the three-point production ran with
 frame = "symmetric"
 
-INPUT_3PT = (SCRIPT_DIR.parent / "3pt_production_simple" / f"gpd_3pt_{frame}")
-OUT_DIR = SCRIPT_DIR / f"ratio_jk_{frame}"
-PLOT_DIR = SCRIPT_DIR / "ratio_plots"
+INPUT_3PT = (SCRIPT_DIR.parent / "3pt_production_simple"
+             / f"gpd_3pt_{frame}")
+FOLD_C2 = True   # average C2(t) with C2(Gt - t); reads both C2 from TWOPT_PATH
+OUT_DIR = SCRIPT_DIR / (f"ratio_jk_{frame}" + ("_foldc2" if FOLD_C2 else ""))
+PLOT_DIR = SCRIPT_DIR / ("ratio_plots" + ("_foldc2" if FOLD_C2 else ""))
 TWOPT_PATH = SCRIPT_DIR.parent / "2PT_simple" / "twopt_source_averaged.h5"
 
 Ls = 32
+Gt = 96
 
 # which produced files to turn into ratios; every combination below must
 # exist in INPUT_3PT or the run stops before doing any work
 tgf_list = [5, 10, 15, 20, 25, 30, 35, 40]
-pf_list = [(-1, 0, pz) for pz in range(0, 7)]
-q_list = [(2, 0, 0)]
+pf_list = [(0, 0, pz) for pz in range(0, 7)]
+q_list = [(0, 0, 0)]
 
 tsep_list = [4, 5, 6, 7, 8, 9, 10]
 w_plot_list = [0, 2, 4, 6, 8]
 
-N_WORKERS = 8
+N_WORKERS = 25
 
 
 def jk_mean_err(samples):
@@ -48,25 +51,25 @@ def jk_mean_err(samples):
     return mean, err
 
 
-def load_c2_initial(cfg_list, pf, q):
-    """Jackknife samples of C2 at pi = pf + q, [jk, t].
+def load_c2(cfg_list, mom):
+    """Jackknife samples of C2 at one momentum, [jk, Gt], folded if asked.
 
-    At q = 0 the caller uses C2_f instead, so this is only reached for
-    off-forward transfers, where the initial-state correlator has to come
-    from the consolidated two-point file.
+    Reads the full-length source-averaged correlator, so t and Gt - t are
+    both available; the 3pt file's pt2_f_jk is truncated at tsep_max and
+    cannot be folded.
     """
+    mom = tuple(int(v) for v in mom)
     with h5py.File(TWOPT_PATH, "r") as f:
-        c2 = f["correlator_cfg"][:]
-        moms = f["momentum_list"][:]
+        moms = [tuple(p) for p in f["momentum_list"][:].tolist()]
         cfgs = f["cfg_list"][:]
+        if mom not in moms:
+            raise ValueError(f"{mom} is not in {TWOPT_PATH}")
+        raw = f["correlator_cfg"][:, moms.index(mom), :].real
     if not np.array_equal(cfgs, cfg_list):
         raise ValueError(
             f"{TWOPT_PATH} holds a different cfg_list than the 3pt file")
-    idx = {tuple(p): i for i, p in enumerate(moms.tolist())}
-    pi = tuple(int(pf[k] + q[k]) for k in range(3))
-    if pi not in idx:
-        raise ValueError(f"pi={pi} is not in {TWOPT_PATH}")
-    raw = c2[:, idx[pi], :].real
+    if FOLD_C2:
+        raw = 0.5 * (raw + np.roll(raw[:, ::-1], 1, axis=1))
     n = raw.shape[0]
     return (raw.sum(axis=0) - raw) / (n - 1)
 
@@ -86,11 +89,17 @@ def ratio_one_file(path):
     n_tsep = len(tsep_list)
     tau_max = max(tsep_list)
 
-    c2_f = c2_f_jk.real
-    if np.all(q == 0):
-        c2_i = c2_f
+    pi = tuple(int(pf[k] + q[k]) for k in range(3))
+    if FOLD_C2:
+        c2_f = load_c2(cfg_list, pf)
+        c2_i = c2_f if np.all(q == 0) else load_c2(cfg_list, pi)
+        d = np.abs(c2_f[:, :c2_f_jk.shape[1]] - c2_f_jk.real)
+        rel = np.max(d / np.abs(c2_f_jk.real))
+        print(f"  {path.name}: maximum percentage of change after folding :folded C2_f - pt2_f_jk| / C2 max = {rel:.3e}",
+              flush=True)
     else:
-        c2_i = load_c2_initial(cfg_list, pf, q)
+        c2_f = c2_f_jk.real
+        c2_i = c2_f if np.all(q == 0) else load_c2(cfg_list, pi)
 
     # exp(+i pi qz w / Ls): the centering phase of the bilocal operator,
     # exactly 1 in the forward limit
@@ -141,6 +150,7 @@ def ratio_one_file(path):
             "(C2_i(tsep) C2_f(tsep-tau) C2_i(tau))), "
             "times exp(i pi qz w / Ls); equals C3/C2 at q = 0")
         f.attrs["source"] = str(path)
+        f.attrs["fold_c2"] = FOLD_C2
 
     plot_ratio(ratio_jk, op_names, w_list, tgf, pf, q)
     return out

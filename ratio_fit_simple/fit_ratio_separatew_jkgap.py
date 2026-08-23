@@ -25,9 +25,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 frame = "symmetric"
 operator = "TXTXpTYTYm2XYXY"
 
-INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple" / f"ratio_jk_{frame}")
+INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple"
+               / f"ratio_jk_{frame}")
 TWOPT_FIT = SCRIPT_DIR.parent / "2PT_simple" / "twopt_fit_results.h5"
-TWOPT_TAG = "nstate3_t4-15_svd1e-12"     # must match `tag` in 2pt_fit.py
+TWOPT_TAG = "nstate3_t4-15_svd1e-12_fold"     # must match `tag` in 2pt_fit.py
 OUTPUT_DIR = SCRIPT_DIR / f"bare_matrix_element_{frame}"
 PLOT_DIR = SCRIPT_DIR / "ratio_fit_plots"
 
@@ -43,9 +44,9 @@ w_plot_list = [0, 2, 4, 6, 8]
 DE_WIDTH_FACTOR = 5.0          
 A_PRIOR_WIDTH = 2
 M00_PRIOR_WIDTH = 2.0
-CROSS_W_FACTOR = 0.0   # 1.0 = full joint fit, 0.0 = block diagonal in w
+CROSS_W_FACTOR = 1.0   # 1.0 = full joint fit, 0.0 = block diagonal in w
                        # (exactly equivalent to fitting each w separately)
-SVDCUT = 1e-7
+SVDCUT = 1e-12
 MAXIT = 20000
 N_WORKERS = 30
 

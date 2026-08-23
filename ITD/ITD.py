@@ -18,12 +18,12 @@ OUTPUT_DIR = SCRIPT_DIR / f"itd_{frame}"
 PLOT_DIR = SCRIPT_DIR / "itd_plots"
 
 tgf_list = [20,25,30,35,40]
-pf_list = [(-1, 0, pz) for pz in range(0, 7)]
-q = (2, 0, 0)
-bareM_tag = "tsep5-10_svd1e-07_dEf5"        # the tag on the bare matrix element files
-
+pf_list = [(0, 0, pz) for pz in range(0, 7)]
+q = (0, 0, 0)
+#bareM_tag = "tsep4-10_svd1e-07_dEf10"        # the tag on the bare matrix element files
+bareM_tag = "tsep4-10_svd1e-012_dEf5_xw0"
 Ls = 32
-PF_REF = (-1, 0, 0)     # the reference momentum both ratios divide by
+PF_REF = (0, 0, 0)     # the reference momentum both ratios divide by
 W_REF = 0
 
 
