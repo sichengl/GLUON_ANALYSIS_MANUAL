@@ -13,17 +13,17 @@ frame = "symmetric"
 operator = "TXTXpTYTYm2XYXY"
 INPUT_BAREM = (SCRIPT_DIR.parent / "ratio_fit_simple"  / f"bare_matrix_element_{frame}")
 TWOPT_FIT = SCRIPT_DIR.parent / "2PT_simple" / "twopt_fit_results.h5"
-TWOPT_TAG = "nstate3_t4-15_svd1e-12"     # must match `tag` in 2pt_fit.py
+TWOPT_TAG = "nstate3_t3-15_svd1e-12"     # must match `tag` in 2pt_fit.py
 OUTPUT_DIR = SCRIPT_DIR / f"itd_{frame}"
 PLOT_DIR = SCRIPT_DIR / "itd_plots"
 
 tgf_list = [20,25,30,35,40]
-pf_list = [(0, 0, pz) for pz in range(0, 7)]
-q = (0, 0, 0)
-bareM_tag = "tsep4-10_svd1e-07_dEf5"        # the tag on the bare matrix element files
+pf_list = [(-1, 0, pz) for pz in range(0, 7)]
+q = (2, 0, 0)
+bareM_tag = "tsep5-10_svd1e-07_dEf5"        # the tag on the bare matrix element files
 
 Ls = 32
-PF_REF = (0, 0, 0)     # the reference momentum both ratios divide by
+PF_REF = (-1, 0, 0)     # the reference momentum both ratios divide by
 W_REF = 0
 
 

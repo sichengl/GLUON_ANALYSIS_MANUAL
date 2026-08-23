@@ -24,7 +24,7 @@ operator = "TXTXpTYTYm2XYXY"
 INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple"
                / f"ratio_jk_{frame}")
 TWOPT_FIT = SCRIPT_DIR.parent / "2PT_simple" / "twopt_fit_results.h5"
-TWOPT_TAG = "nstate3_t4-15_svd1e-12"     # must match `tag` in 2pt_fit.py
+TWOPT_TAG = "nstate3_t3-15_svd1e-12"     # must match `tag` in 2pt_fit.py
 OUTPUT_DIR = SCRIPT_DIR / f"bare_matrix_element_{frame}"
 PLOT_DIR = SCRIPT_DIR / "ratio_fit_plots"
 
@@ -33,11 +33,11 @@ pf_list = [(0, 0, pz) for pz in range(0, 7)]
 q_list = [(0, 0, 0)]
 
 w_fit_list = list(range(0, 10))
-tsep_fit_list = [4,5,6, 7, 8, 9, 10]
+tsep_fit_list = [4,5,6,7, 8, 9, 10]
 tau_skip = 1
 w_plot_list = [0, 2, 4, 6, 8]
 
-DE_WIDTH_FACTOR = 5.0          
+DE_WIDTH_FACTOR = 10.0          
 A_PRIOR_WIDTH = 2
 M00_PRIOR_WIDTH = 2.0
 SVDCUT = 1e-7
@@ -147,6 +147,12 @@ def fit_one_point(tgf, pf, q):
     if getattr(central_fit, "svdn", 0):
         print(f"  WARNING {label}: svdcut modified {central_fit.svdn} of {n_pt} "
                 f"modes", flush=True)
+   
+    print("======COMPARE FIRST GAP======", flush=True)
+    print(f"  2pt   dE1 = {gap_i_mean:.4f} +- {gap_i_err:.4f}", flush=True)
+    for iw_fit, w in enumerate(w_fit_list):
+        print(f"  ratio dEi w={w}: {central_fit.p['dEi'][iw_fit]}", flush=True)
+    
     p0 = {k: central_fit.pmean[k] for k in central_fit.prior} # build a dictionary of central values of fit parameters
 
     names = ["M00", "Ai", "Afi", "dEi"] + ([] if forward else ["Af", "dEf"])

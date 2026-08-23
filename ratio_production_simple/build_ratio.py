@@ -32,8 +32,8 @@ Ls = 32
 # which produced files to turn into ratios; every combination below must
 # exist in INPUT_3PT or the run stops before doing any work
 tgf_list = [5, 10, 15, 20, 25, 30, 35, 40]
-pf_list = [(0, 0, pz) for pz in range(0, 7)]
-q_list = [(0, 0, 0)]
+pf_list = [(-1, 0, pz) for pz in range(0, 7)]
+q_list = [(2, 0, 0)]
 
 tsep_list = [4, 5, 6, 7, 8, 9, 10]
 w_plot_list = [0, 2, 4, 6, 8]

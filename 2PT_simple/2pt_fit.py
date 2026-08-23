@@ -12,12 +12,12 @@ FIT_PATH = Path("./twopt_fit_results.h5")
 Gs, Gt = 32, 96
 
 MOM_LIST = [(0, 0, pz) for pz in range(7)]
-TMIN, TMAX = 6, 15
-TSEP_LIST = [4, 5, 6]  #(c1*e^-E1tsep) / (c0*e^-E0tsep) will be printed out
+TMIN, TMAX = 4, 15
+TSEP_LIST = [4, 5, 6,7]  #(c1*e^-E1tsep) / (c0*e^-E0tsep) will be printed out
 N_STATES = 2
 SVDCUT = 1e-12
 
-MASS = 0.14
+MASS = 0.141
 E0_WIDTH = 0.10                  # default width, used when mom is not in E0_PRIOR
 
 # per-momentum overrides: mom -> gv.gvar(center, width).
@@ -25,8 +25,8 @@ E0_WIDTH = 0.10                  # default width, used when mom is not in E0_PRI
 E0_PRIOR = {
 }
 
-DE1_PRIOR = gv.gvar("0.60(60)")
-DE2_PRIOR = gv.gvar("0.60(60)")
+DE1_PRIOR = gv.gvar("0.60(1.50)")
+DE2_PRIOR = gv.gvar("0.60(1.50)")
 C_CENTER = 0.0
 C_WIDTH = 1e4
 
