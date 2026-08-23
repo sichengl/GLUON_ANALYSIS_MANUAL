@@ -25,8 +25,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 frame = "symmetric"
 operator = "TXTXpTYTYm2XYXY"
 
-INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple"
-               / f"ratio_jk_{frame}")
+INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple" / f"ratio_jk_{frame}")
 TWOPT_FIT = SCRIPT_DIR.parent / "2PT_simple" / "twopt_fit_results.h5"
 TWOPT_TAG = "nstate3_t4-15_svd1e-12"     # must match `tag` in 2pt_fit.py
 OUTPUT_DIR = SCRIPT_DIR / f"bare_matrix_element_{frame}"
