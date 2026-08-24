@@ -12,14 +12,14 @@ FIT_PATH = Path("./twopt_fit_results.h5")
 Gs, Gt = 32, 96
 
 MOM_LIST = [(0, 0, pz) for pz in range(7)]
-TMIN, TMAX = 4, 14
+TMIN, TMAX = 7, 15
 TSEP_LIST = [4, 5, 6,7]  #(c1*e^-E1tsep) / (c0*e^-E0tsep) will be printed out
-N_STATES = 3
+N_STATES = 2
 SVDCUT = 1e-12
 FOLD = True     # average C(t) with C(Gt - t)
 
 MASS = 0.141
-E0_WIDTH = 0.10                  # default width, used when mom is not in E0_PRIOR
+E0_WIDTH = 0.1                  # default width, used when mom is not in E0_PRIOR
 
 # per-momentum overrides: mom -> gv.gvar(center, width).
 # anything not listed uses the lattice dispersion relation with E0_WIDTH.
@@ -29,7 +29,7 @@ E0_PRIOR = {
 DE1_PRIOR = gv.gvar("0.60(60)")
 DE2_PRIOR = gv.gvar("0.60(60)")
 C_CENTER = 0.0
-C_WIDTH = 100
+C_WIDTH = 0.01
 
 PROGRESS_EVERY = 100
 
