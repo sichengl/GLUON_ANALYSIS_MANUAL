@@ -28,12 +28,12 @@ tgf_list = [20, 25, 30, 35, 40]
 pf_list = [(0, 0, pz) for pz in range(0, 7)]
 q_list = [(0, 0, 0)]
 
-w_fit_list = [4,5,6]
+w_fit_list = [0,1,2,3,4,5,6,7,8,9]
 tsep_fit_list = [4, 5, 6, 7, 8, 9, 10]
 tau_skip = 1
 
 SVDCUT = 1e-7          # only drawn as a reference line
-LOO_STRIDE = 10        # use every Nth leave-one-out set; 1 = all of them
+LOO_STRIDE = 1        # use every Nth leave-one-out set; 1 = all of them
 N_WORKERS = 30
 # ---------------------------------------------------------------------------
 
@@ -122,8 +122,6 @@ def run_one(tgf, pf, q):
             f"{n_below} modes below svdcut, "
             f"largest leave-one-out spread {spread.max():.3f}x -> "
             f"{names[0]} + {names[1]}")
-
-
 
 
 if __name__ == "__main__":

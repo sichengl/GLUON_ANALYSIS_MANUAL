@@ -25,14 +25,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 frame = "symmetric"
 operator = "TXTXpTYTYm2XYXY"
 
-FOLD_RATIO = False   # read ratios built with folded C2 denominators
-FOLD_2PT = True      # read the gap and r priors from the folded 2pt fit
-
 INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple"
-               / (f"ratio_jk_{frame}" + ("_foldc2" if FOLD_RATIO else "")))
+               / f"ratio_jk_{frame}")
 TWOPT_FIT = SCRIPT_DIR.parent / "2PT_simple" / "twopt_fit_results.h5"
-TWOPT_TAG_BASE = "nstate3_t4-14_svd1e-12"   # must match `tag` in 2pt_fit.py
-TWOPT_TAG = TWOPT_TAG_BASE + ("_fold" if FOLD_2PT else "")
+TWOPT_TAG = "nstate3_t4-15_svd1e-12_fold"     # must match `tag` in 2pt_fit.py
 OUTPUT_DIR = SCRIPT_DIR / f"bare_matrix_element_{frame}"
 PLOT_DIR = SCRIPT_DIR / "ratio_fit_plots"
 
@@ -41,25 +37,23 @@ pf_list = [(0, 0, pz) for pz in range(0, 7)]
 q_list = [(0, 0, 0)]
 
 w_fit_list = list(range(0, 10))
-tsep_fit_list = [6, 7, 8, 9, 10]
+tsep_fit_list = [4,5,6, 7, 8, 9, 10]
 tau_skip = 1
 w_plot_list = [0, 2, 4, 6, 8]
 
-DE_WIDTH_FACTOR = 2.0          
-R_WIDTH_FACTOR = 5.0   # prior width on r = c1/c0, in units of its jackknife error
+DE_WIDTH_FACTOR = 3.0          
+R_WIDTH_FACTOR = 3.0   # prior width on r = c1/c0, in units of its jackknife error
 A_PRIOR_WIDTH = 2
-M00_PRIOR_WIDTH = 1.0
+M00_PRIOR_WIDTH = 2.0
 CROSS_W_FACTOR = 0.0   # 1.0 = full joint fit, 0.0 = block diagonal in w
                        # (exactly equivalent to fitting each w separately)
-SVDCUT = 1e-7
+SVDCUT = 1e-8
 MAXIT = 20000
 N_WORKERS = 30
 
 tag = (f"tsep{tsep_fit_list[0]}-{tsep_fit_list[-1]}_svd{SVDCUT:.0e}"
        f"_dEf{DE_WIDTH_FACTOR:g}_rf{R_WIDTH_FACTOR:g}"
-       f"_xw{CROSS_W_FACTOR:g}_den"
-       + ("_foldR" if FOLD_RATIO else "")
-       + ("_fold2" if FOLD_2PT else "")).replace(".", "p")
+       f"_xw{CROSS_W_FACTOR:g}_den".replace(".", "p"))
 
 def jk(values, jack_axis=0):
     """Jackknife mean and error over jack_axis."""
@@ -233,8 +227,6 @@ def fit_one_point(tgf, pf, q):
         f.attrs["tau_skip"] = tau_skip
         f.attrs["svdcut"] = SVDCUT
         f.attrs["cross_w_factor"] = CROSS_W_FACTOR
-        f.attrs["fold_ratio"] = FOLD_RATIO
-        f.attrs["fold_2pt"] = FOLD_2PT
         f.attrs["svdn"] = int(getattr(central_fit, "svdn", 0))
         f.attrs["chi2dof"] = float(chi2dof.mean())
         f.attrs["Q"] = float(Q.mean())
