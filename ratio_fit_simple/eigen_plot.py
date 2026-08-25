@@ -77,61 +77,53 @@ def leave_one_out_spectra(samples):
 
 
 def plot_spectra(ev_loo, ev_all, n, tgf, pf, q):
+    """One panel of spectra, drawn twice: log x-axis and linear x-axis."""
     n_curve, n_pt = ev_loo.shape
     index = np.arange(1, n_pt + 1)
-    fig, axes = plt.subplots(1, 2, figsize=(13.0, 6.0))
-
-    ax = axes[0]
-    ax.plot(ev_all, index, color="k", lw=2.5, zorder=1,
-            label=f"all {n} measurements")
-    for k in range(n_curve):
-        ax.plot(ev_loo[k], index, color="C0", lw=0.5, alpha=0.4, zorder=2)
-    ax.plot(ev_loo.min(axis=0), index, color="C1", lw=1.0, ls="--", zorder=3,
-            label=f"{n_curve} x leave-one-out, min / max")
-    ax.plot(ev_loo.max(axis=0), index, color="C1", lw=1.0, ls="--", zorder=3)
     n_below = int(np.sum(ev_all < SVDCUT * ev_all.max()))
-    ax.axvline(SVDCUT * ev_all.max(), color="r", ls="--", lw=1, zorder=4,
-               label=f"svdcut {SVDCUT:.0e} x max  ({n_below} below)")
-    ax.set_xscale("log")
-    ax.set_xlabel("eigenvalue of the correlation matrix")
-    ax.set_ylabel("index (ascending)")
-    ax.legend(fontsize=8, loc="lower right")
 
-    ax = axes[1]
-    ratio = ev_loo / ev_all[None, :]
-    for k in range(n_curve):
-        ax.plot(index, ratio[k], color="C0", lw=0.5, alpha=0.4)
-    ax.plot(index, ratio.min(axis=0), color="C1", lw=1.0, ls="--",
-            label="leave-one-out min / max")
-    ax.plot(index, ratio.max(axis=0), color="C1", lw=1.0, ls="--")
-    ax.axhline(1.0, color="k", lw=1.5)
-    ax.axvline(n_below + 0.5, color="r", ls="--", lw=1,
-               label="modes below svdcut")
-    ax.set_yscale("log")
-    ax.set_xlabel("index (ascending)")
-    ax.set_ylabel("eigenvalue / full-sample eigenvalue")
-    ax.legend(fontsize=8)
+    names = []
+    for scale, suffix in (("log", "logx"), ("linear", "linx")):
+        fig, ax = plt.subplots(figsize=(7.5, 6.0))
+        ax.plot(ev_all, index, color="k", lw=2.5, zorder=1,
+                label=f"all {n} measurements")
+        for k in range(n_curve):
+            ax.plot(ev_loo[k], index, color="C0", lw=0.5, alpha=0.4, zorder=2)
+        ax.plot(ev_loo.min(axis=0), index, color="C1", lw=1.0, ls="--", zorder=3,
+                label=f"{n_curve} x leave-one-out, min / max")
+        ax.plot(ev_loo.max(axis=0), index, color="C1", lw=1.0, ls="--", zorder=3)
+        ax.axvline(SVDCUT * ev_all.max(), color="r", ls="--", lw=1, zorder=4,
+                   label=f"svdcut {SVDCUT:.0e} x max  ({n_below} below)")
+        ax.set_xscale(scale)
+        ax.set_xlabel("eigenvalue of the correlation matrix")
+        ax.set_ylabel("index (ascending)")
+        ax.legend(fontsize=8, loc="lower right")
 
-    fig.suptitle(f"{operator}  {frame}  tgf{tgf}  pf{pf}  q{q}   "
-                 f"{n_pt} points", fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
-    name = (f"correig_{operator}_{frame}_tgf{tgf}"
-            f"_pf{pf[0]}_{pf[1]}_{pf[2]}_q{q[0]}_{q[1]}_{q[2]}.png")
-    fig.savefig(PLOT_DIR / name, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    return name, n_below
+        fig.suptitle(f"{operator}  {frame}  tgf{tgf}  pf{pf}  q{q}   "
+                     f"{n_pt} points  ({scale} x)", fontsize=12)
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+        name = (f"correig_{operator}_{frame}_tgf{tgf}"
+                f"_pf{pf[0]}_{pf[1]}_{pf[2]}_q{q[0]}_{q[1]}_{q[2]}"
+                f"_{suffix}.png")
+        fig.savefig(PLOT_DIR / name, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        names.append(name)
+    return names, n_below
 
 
 def run_one(tgf, pf, q):
     samples = build_samples(tgf, pf, q)
     ev_loo, ev_all, trace, n = leave_one_out_spectra(samples)
-    name, n_below = plot_spectra(ev_loo, ev_all, n, tgf, pf, q)
+    names, n_below = plot_spectra(ev_loo, ev_all, n, tgf, pf, q)
     spread = ev_loo.max(axis=0) / ev_loo.min(axis=0)
     return (f"tgf{tgf} pf{pf} q{q}: {samples.shape[1]} points, {n} measurements, "
             f"trace {trace:.4f}, eigenvalues {ev_all.min():.3e} .. "
             f"{ev_all.max():.3e}, ratio {ev_all.min() / ev_all.max():.2e}, "
             f"{n_below} modes below svdcut, "
-            f"largest leave-one-out spread {spread.max():.3f}x -> {name}")
+            f"largest leave-one-out spread {spread.max():.3f}x -> "
+            f"{names[0]} + {names[1]}")
+
+
 
 
 if __name__ == "__main__":
