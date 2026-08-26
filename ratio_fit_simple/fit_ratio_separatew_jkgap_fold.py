@@ -26,30 +26,30 @@ frame = "symmetric"
 operator = "TXTXpTYTYm2XYXY"
 
 FOLD_RATIO = False   # read ratios built with folded C2 denominators
-FOLD_2PT = True      # read the gap prior from the folded 2pt fit
+FOLD_2PT = False   # read the gap prior from the folded 2pt fit
 
 INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple" / (f"ratio_jk_{frame}" + ("_foldc2" if FOLD_RATIO else "")))
 TWOPT_FIT = SCRIPT_DIR.parent / "2PT_simple" / "twopt_fit_results.h5"
-TWOPT_TAG_BASE = "nstate3_t3-15_svd1e-12"   # must match `tag` in 2pt_fit.py
+TWOPT_TAG_BASE =  "nstate3_t4-15_svd1e-04_tref10"   # must match `tag` in 2pt_fit.py
 TWOPT_TAG = TWOPT_TAG_BASE + ("_fold" if FOLD_2PT else "")
-OUTPUT_DIR = SCRIPT_DIR / f"bare_matrix_element_{frame}_2pt_{TWOPT_TAG_BASE}"
-PLOT_DIR = SCRIPT_DIR / "ratio_fit_plots"
+OUTPUT_DIR = SCRIPT_DIR / f"bare_matrix_element_{frame}_2pt_{TWOPT_TAG_BASE}_perjk"
+PLOT_DIR = SCRIPT_DIR / f"ratio_fit_plots_perjk_{frame}_{TWOPT_TAG_BASE}"
 
 tgf_list = [20,25,30,35,40]
 pf_list = [(0, 0, pz) for pz in range(0, 7)]
 q_list = [(0, 0, 0)]
 
 w_fit_list = list(range(0, 10))
-tsep_fit_list = [5, 7, 8, 9, 10]
+tsep_fit_list = [4,5,6, 7, 8, 9, 10]
 tau_skip = 1
 w_plot_list = [0, 2, 4, 6, 8]
 
-DE_WIDTH_FACTOR = 2.0          
-A_PRIOR_WIDTH = 1
-M00_PRIOR_WIDTH = 1.0
+DE_WIDTH_FACTOR = 5.0          
+A_PRIOR_WIDTH = 5
+M00_PRIOR_WIDTH = 2.0
 CROSS_W_FACTOR = 1.0   # 1.0 = full joint fit, 0.0 = block diagonal in w
                        # (exactly equivalent to fitting each w separately)
-SVDCUT = 1e-5
+SVDCUT = 1e-7
 MAXIT = 20000
 N_WORKERS = 30
 
@@ -131,11 +131,12 @@ def fit_one_point(tgf, pf, q):
     pi = tuple(int(pf[k] + q[k]) for k in range(3))
     with h5py.File(TWOPT_FIT, "r") as f:
         g = f[TWOPT_TAG]
-        gap_f_jk = g[f"p{pf[0]}_{pf[1]}_{pf[2]}"]["dE_jk"][:, 1]
-        if forward:
-            gap_i_jk = gap_f_jk
-        else:
-            gap_i_jk = g[f"p{pi[0]}_{pi[1]}_{pi[2]}"]["dE_jk"][:, 1]
+        gf = g[f"p{pf[0]}_{pf[1]}_{pf[2]}"]
+        gi = gf if forward else g[f"p{pi[0]}_{pi[1]}_{pi[2]}"]
+        gap_f_jk = gf["dE_jk"][:, 1]
+        gap_i_jk = gi["dE_jk"][:, 1]
+        gap_f_err_jk = gf["dE_sdev_jk"][:, 1]  #width is per-jackknif-samplee
+        gap_i_err_jk = gi["dE_sdev_jk"][:, 1]
     gap_f_mean, gap_f_err = jk(gap_f_jk)
     gap_i_mean, gap_i_err = jk(gap_i_jk)
     if len(gap_f_jk) != n_jk:
@@ -171,7 +172,7 @@ def fit_one_point(tgf, pf, q):
         jackknife_fit = lsqfit.nonlinear_fit(
             data=(x, gv.gvar(samples[i], cov)), fcn=ratio_model, p0=p0,
             svdcut=SVDCUT, maxit=MAXIT,
-            prior=make_prior(n_w, forward, gap_i_jk[i], gap_i_err,gap_f_jk[i], gap_f_err))
+            prior=make_prior(n_w, forward, gap_i_jk[i], gap_i_err_jk[i],gap_f_jk[i], gap_f_err_jk[i]))
         for n in names:
             params[n][i] = gv.mean(jackknife_fit.p[n]) #gv.mean(array of gvar objects) = array of central values
         chi2dof[i], Q[i] = jackknife_fit.chi2 / jackknife_fit.dof, jackknife_fit.Q

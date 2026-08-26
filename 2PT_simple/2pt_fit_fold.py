@@ -15,7 +15,7 @@ MOM_LIST = [(0, 0, pz) for pz in range(7)]
 TMIN, TMAX = 3, 15
 TSEP_LIST = [4, 5, 6,7]  #(c1*e^-E1tsep) / (c0*e^-E0tsep) will be printed out
 N_STATES = 3
-SVDCUT = 1e-12
+SVDCUT = 1e-4
 FOLD = True     # average C(t) with C(Gt - t)
 
 MASS = 0.141
@@ -133,21 +133,35 @@ for pf in MOM_LIST:
     for tsep, r in zip(TSEP_LIST, ratio):
         print(f"  central: C1 e^(-E1 tsep) / C0 e^(-E0 tsep) "
               f"at tsep = {tsep}: {r}")
-
+    
+    #per-jackknife central values
     E_jk = np.zeros((n_jk, N_STATES))
     dE_jk = np.zeros((n_jk, N_STATES))
     C_jk = np.zeros((n_jk, N_STATES))
+    
+    #per-jackknife sdev
+    E_sdev_jk = np.zeros((n_jk, N_STATES))
+    dE_sdev_jk = np.zeros((n_jk, N_STATES))
+    C_sdev_jk = np.zeros((n_jk, N_STATES))
+
+    #per-jackknife fit quality
     chi2dof_jk = np.zeros(n_jk)
     Q_jk = np.zeros(n_jk)
 
     p0 = {k: central_fit.pmean[k] for k in prior}
     for i in range(n_jk):
-        fit_jk = lsqfit.nonlinear_fit(data=(t, gv.gvar(jk[i], cov)),
-                                      fcn=twopt_model, prior=prior,
-                                      svdcut=SVDCUT, p0=p0)
+        fit_jk = lsqfit.nonlinear_fit(data=(t, gv.gvar(jk[i], cov)),fcn=twopt_model, prior=prior,svdcut=SVDCUT, p0=p0)
+        
+        #save central values
         dE_jk[i] = gv.mean(fit_jk.p["dE"])
         E_jk[i] = np.cumsum(dE_jk[i])
         C_jk[i] = gv.mean(fit_jk.p["c"])
+        
+        #save sdevs
+        E_sdev_jk[i]     = gv.sdev(np.cumsum(fit_jk.p["dE"]))
+        dE_sdev_jk[i] = gv.sdev(fit_jk.p["dE"])
+        C_jk[i]       = gv.sdev(fit_jk.p["c"])
+
         chi2dof_jk[i] = fit_jk.chi2 / fit_jk.dof
         Q_jk[i] = fit_jk.Q
         if PROGRESS_EVERY and (i + 1) % PROGRESS_EVERY == 0:
@@ -193,6 +207,9 @@ for pf in MOM_LIST:
         gm.create_dataset("E_jk", data=E_jk)
         gm.create_dataset("dE_jk", data=dE_jk)
         gm.create_dataset("C_jk", data=C_jk)
+        gm.create_dataset("E_sdev_jk", data=E_sdev_jk)
+        gm.create_dataset("dE_sdev_jk", data=dE_sdev_jk)
+        gm.create_dataset("C_sdev_jk", data=C_sdev_jk)
         gm.create_dataset("chi2dof_jk", data=chi2dof_jk)
         gm.create_dataset("Q_jk", data=Q_jk)
         gm.create_dataset("E_jk_mean", data=E_jk_mean)

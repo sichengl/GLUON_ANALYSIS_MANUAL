@@ -6,59 +6,57 @@ import lsqfit
 
 """Reads twopt_source_averaged.h5 which has all the source-averaged 2pts"""
 """Shape of input 2pt: [n_cfg,n_mom,tsink]"""
+"""Fit method matches the gluon_gpd stage-1 two-point fit:
+   - E0 is its own Gaussian parameter (not slot 0 of log(dE))
+   - E0 prior center: continuum dispersion sqrt(m_rest^2 + (2 pi/Gs)^2 |p|^2)
+     with m_rest MEASURED (acosh effective mass at t = TREF, rest frame)
+   - E0 prior width: this momentum's own jackknife error of the effective
+     mass at t = TREF
+   - gaps log-normal 0.50(40), amplitudes Gaussian 0(1e4)"""
 
 PT2_PATH = Path("./twopt_source_averaged.h5")
 FIT_PATH = Path("./twopt_fit_results.h5")
 Gs, Gt = 32, 96
 
 MOM_LIST = [(0, 0, pz) for pz in range(7)]
-TMIN, TMAX = 3, 15
-TSEP_LIST = [4, 5, 6,7]  #(c1*e^-E1tsep) / (c0*e^-E0tsep) will be printed out
+TMIN, TMAX = 4, 15
+TSEP_LIST = [4, 5, 6, 7]  #(c1*e^-E1tsep) / (c0*e^-E0tsep) will be printed out
 N_STATES = 3
-SVDCUT = 1e-12
+SVDCUT = 1e-4
+TREF = 10                 # E0 prior is read off the effective mass at this t
+MAXIT = 20000
 
-MASS = 0.141
-E0_WIDTH = 0.10                  # default width, used when mom is not in E0_PRIOR
-
-# per-momentum overrides: mom -> gv.gvar(center, width).
-# anything not listed uses the lattice dispersion relation with E0_WIDTH.
-E0_PRIOR = {
-}
-
-DE1_PRIOR = gv.gvar("0.60(0.40)")
-DE2_PRIOR = gv.gvar("0.60(0.40)")
+DE1_PRIOR = gv.gvar("0.50(0.40)")
+DE2_PRIOR = gv.gvar("0.50(0.40)")
 C_CENTER = 0.0
 C_WIDTH = 1e4
 
 PROGRESS_EVERY = 100
 
-tag = f"nstate{N_STATES}_t{TMIN}-{TMAX}_svd{SVDCUT:.0e}"
+tag = f"nstate{N_STATES}_t{TMIN}-{TMAX}_svd{SVDCUT:.0e}_tref{TREF}"
 
 
 def twopt_model(t, p):
-    corr = 0.0
-    e = 0.0
-    for n in range(len(p["dE"])):
-        e = e + p["dE"][n]
+    e = p["E0"]
+    corr = p["c"][0] * (gv.exp(-e * t) + gv.exp(-e * (Gt - t)))
+    for n in range(1, len(p["c"])):
+        e = e + p["dE"][n - 1]
         corr = corr + p["c"][n] * (gv.exp(-e * t) + gv.exp(-e * (Gt - t)))
     return corr
 
 
-def make_prior(n_states, mom):
-    if mom in E0_PRIOR:
-        e0, e0_width = gv.mean(E0_PRIOR[mom]), gv.sdev(E0_PRIOR[mom])
-    else:
-        p_lat = 2.0 * np.pi * np.array(mom, dtype=float) / Gs
-        e0 = 2.0 * np.arcsinh(np.sqrt(np.sinh(MASS / 2.0) ** 2
-                                      + np.sum(np.sin(p_lat / 2.0) ** 2)))
-        e0_width = E0_WIDTH
+def make_prior(n_states, e0_center, e0_width):
+    """E0 Gaussian (center and width measured, see effmass_at_tref);
+    gaps log-normal so they stay positive; amplitudes loose Gaussians."""
     gaps = [DE1_PRIOR, DE2_PRIOR][:n_states - 1]
-
-    #The 0th gap is E0
-    dE = gv.gvar([e0] + [gv.mean(g) for g in gaps],
-                 [e0_width] + [gv.sdev(g) for g in gaps])
-    c = gv.gvar([C_CENTER] * n_states, [C_WIDTH] * n_states)
-    return {"c": c, "log(dE)": gv.log(dE)}
+    prior = {
+        "E0": gv.gvar(e0_center, e0_width),
+        "c": gv.gvar([C_CENTER] * n_states, [C_WIDTH] * n_states),
+    }
+    if n_states > 1:
+        prior["log(dE)"] = gv.log(gv.gvar([gv.mean(g) for g in gaps],
+                                          [gv.sdev(g) for g in gaps]))
+    return prior
 
 
 def cov_of_mean(samples):
@@ -70,6 +68,16 @@ def jk_stats(values):
     n = values.shape[0]
     mean = values.mean(axis=0)
     return mean, np.sqrt((n - 1.0) / n * np.sum((values - mean) ** 2, axis=0))
+
+
+def effmass_at_tref(raw):
+    """acosh[(C(t+1) + C(t-1)) / (2 C(t))] at t = TREF, on the delete-one
+    jackknife replicates of raw [n_cfg, t].  Returns (jk_mean, jk_err)."""
+    n = raw.shape[0]
+    reps = (raw.sum(axis=0) - raw) / (n - 1.0)
+    em = np.arccosh((reps[:, TREF + 1] + reps[:, TREF - 1])
+                    / (2.0 * reps[:, TREF]))
+    return jk_stats(em)
 
 
 with h5py.File(PT2_PATH, "r") as f:
@@ -84,6 +92,10 @@ mom_to_idx = {tuple(p): i for i, p in enumerate(moms.tolist())}
 t = np.arange(TMIN, TMAX + 1)
 n_jk = pion.shape[0]
 
+# the measured rest mass that feeds every momentum's dispersion prior center
+m_rest, _ = effmass_at_tref(pion[..., mom_to_idx[(0, 0, 0)], :].real)
+print(f"rest mass from effective mass at t = {TREF}: {m_rest:.6f}", flush=True)
+
 
 for pf in MOM_LIST:
     ipf = mom_to_idx[pf]
@@ -93,12 +105,20 @@ for pf in MOM_LIST:
     cov = cov_of_mean(samples)
     jk = (samples.sum(axis=0) - samples) / (n_jk - 1)
 
-    prior = make_prior(N_STATES, pf)
+    # E0 prior: dispersion center from the measured rest mass, width from
+    # THIS momentum's effective-mass jackknife error at t = TREF
+    e0_center = np.sqrt(m_rest ** 2
+                        + (2.0 * np.pi / Gs) ** 2 * sum(c ** 2 for c in pf))
+    _, e0_width = effmass_at_tref(C2_pf)
+    prior = make_prior(N_STATES, e0_center, e0_width)
 
     central_fit = lsqfit.nonlinear_fit(data=(t, gv.gvar(mean, cov)),
                                        fcn=twopt_model, prior=prior,
-                                       svdcut=SVDCUT)
-    E = np.cumsum(central_fit.p["dE"])  #[E0, dE1, dE2] -> [E0, E1, E2]
+                                       svdcut=SVDCUT, maxit=MAXIT)
+    #[E0, dE1, dE2] -> [E0, E1, E2]; cumsum on the gvars keeps correlations
+    dE_full = np.concatenate([np.atleast_1d(central_fit.p["E0"]),
+                              central_fit.p["dE"]])
+    E = np.cumsum(dE_full)
     E_central = gv.mean(E)
     E_central_sdev = gv.sdev(E)
     C_central = gv.mean(central_fit.p["c"])
@@ -108,6 +128,8 @@ for pf in MOM_LIST:
 
     print(f"\n====== CENTRAL FIT RESULT   pf = {pf} ======")
     print(f"  central: n_states = {N_STATES}   t = {TMIN}..{TMAX}")
+    print(f"  central: E0 prior = {gv.gvar(e0_center, e0_width)}   "
+          f"(dispersion center, effmass width at t = {TREF})")
     for n in range(N_STATES):
         print(f"  central: E{n} = {E[n]:<14} c{n} = {central_fit.p['c'][n]}")
     print(f"  central: chi2/dof = {chi2dof_central:.2f}   "
@@ -115,12 +137,13 @@ for pf in MOM_LIST:
     print(central_fit.format(maxline=True))
 
     ratio = (central_fit.p["c"][1] / central_fit.p["c"][0]
-             * gv.exp(-central_fit.p["dE"][1] * np.array(TSEP_LIST)))
+             * gv.exp(-central_fit.p["dE"][0] * np.array(TSEP_LIST)))
     for tsep, r in zip(TSEP_LIST, ratio):
         print(f"  central: C1 e^(-E1 tsep) / C0 e^(-E0 tsep) "
               f"at tsep = {tsep}: {r}")
 
-    #per-jackknife central values
+    #per-jackknife central values (slot 0 of dE_jk is E0, slots 1+ are gaps,
+    #the SAME layout as before -- the ratio fit reads dE_jk[:, 1] unchanged)
     E_jk = np.zeros((n_jk, N_STATES))
     dE_jk = np.zeros((n_jk, N_STATES))
     C_jk = np.zeros((n_jk, N_STATES))
@@ -138,15 +161,19 @@ for pf in MOM_LIST:
     for i in range(n_jk):
         fit_jk = lsqfit.nonlinear_fit(data=(t, gv.gvar(jk[i], cov)),
                                       fcn=twopt_model, prior=prior,
-                                      svdcut=SVDCUT, p0=p0)
+                                      svdcut=SVDCUT, p0=p0, maxit=MAXIT)
+        dE_full = np.concatenate([np.atleast_1d(fit_jk.p["E0"]),
+                                  fit_jk.p["dE"]])
+        E_full = np.cumsum(dE_full)   # gvar cumsum: keeps the correlations
+
         #save central values
-        dE_jk[i] = gv.mean(fit_jk.p["dE"])
-        E_jk[i] = np.cumsum(dE_jk[i])
+        dE_jk[i] = gv.mean(dE_full)
+        E_jk[i] = gv.mean(E_full)
         C_jk[i] = gv.mean(fit_jk.p["c"])
 
-        #save sdevs (cumsum the gvars so E keeps the dE correlations)
-        E_sdev_jk[i]  = gv.sdev(np.cumsum(fit_jk.p["dE"]))
-        dE_sdev_jk[i] = gv.sdev(fit_jk.p["dE"])
+        #save sdevs
+        E_sdev_jk[i]  = gv.sdev(E_full)
+        dE_sdev_jk[i] = gv.sdev(dE_full)
         C_sdev_jk[i]  = gv.sdev(fit_jk.p["c"])
 
         chi2dof_jk[i] = fit_jk.chi2 / fit_jk.dof
@@ -179,6 +206,10 @@ for pf in MOM_LIST:
         g.attrs["n_states"] = N_STATES
         g.attrs["svdcut"] = SVDCUT
         g.attrs["n_jk"] = n_jk
+        g.attrs["tref"] = TREF
+        g.attrs["E0_prior_scheme"] = ("center sqrt(m_rest^2 + p^2), m_rest = "
+                                      f"effmass(t={TREF}) at rest; width = "
+                                      f"this momentum's effmass jk error")
         mom_name = f"p{pf[0]}_{pf[1]}_{pf[2]}"
         if mom_name in g:
             del g[mom_name]
@@ -202,6 +233,8 @@ for pf in MOM_LIST:
         gm.create_dataset("E_jk_err", data=E_jk_err)
         gm.create_dataset("dE_jk_mean", data=dE_jk_mean)
         gm.create_dataset("dE_jk_err", data=dE_jk_err)
+        gm.attrs["E0_prior_center"] = e0_center
+        gm.attrs["E0_prior_width"] = e0_width
         gm.attrs["dim_E_jk"] = "jk,state"
         gm.attrs["dim_dE_jk"] = "jk,state (slot 0 is E0, slots 1+ are gaps)"
         gm.attrs["dim_dE_sdev_jk"] = ("jk,state -- lsqfit's uncertainty on each "
