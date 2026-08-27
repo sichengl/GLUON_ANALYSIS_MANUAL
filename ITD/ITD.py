@@ -64,7 +64,7 @@ for flow in tgf_list:
 
     ipf = pf_list.index(PF_REF)
     iw = list(w_list).index(W_REF)
-    # the Wilson line runs along z, so only the z component enters nu = p.z
+    
     pz_of_pf = np.array([p[2] for p in pf_list], dtype=float)
     nu = (2.0 * np.pi / Ls) * pz_of_pf[:, None] * w_list[None, :]
 
