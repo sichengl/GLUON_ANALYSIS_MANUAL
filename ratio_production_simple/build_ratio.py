@@ -113,11 +113,6 @@ def ratio_one_file(path):
         ratio_jk[:, :, :, itsep, : tsep + 1] = (
             num / f_T[:, None, None, :] * factor[:, None, None, :])
 
-    bad = sum(int(np.sum(~np.isfinite(ratio_jk[:, :, :, i, : t + 1])))
-              for i, t in enumerate(tsep_list))
-    if bad:
-        print(f"  WARNING {path.name}: {bad} non-finite ratio entries "
-              f"(negative argument under the square root?)", flush=True)
 
     out = (OUT_DIR / f"ratio_{frame}_tgf{tgf}_pf{pf[0]}_{pf[1]}_{pf[2]}"
            f"_q{q[0]}_{q[1]}_{q[2]}.h5")
