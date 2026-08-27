@@ -103,13 +103,8 @@ pt3_output = str(
 
 
 def q_produce_rows():
-    rows = []
-    for q in q_list_produce:
-        match = np.where((q_list == q).all(axis=1))[0]
-        if len(match) != 1:
-            raise ValueError(f"q={tuple(q.tolist())} is not a row of q_list")
-        rows.append(int(match[0]))
-    return rows
+    pos = {tuple(r): i for i, r in enumerate(q_list.tolist())}
+    return [pos[tuple(q)] for q in q_list_produce.tolist()]
 
 
 def make_source_phase(cfg):
