@@ -23,7 +23,6 @@ INPUT_RATIO = (SCRIPT_DIR.parent / "ratio_production_simple"
                / f"ratio_jk_{frame}")
 PLOT_DIR = SCRIPT_DIR / "corr_eigen_plots"
 
-# ---- which data points to use: exactly the ratio fit's selection ----------
 tgf_list = [20, 25, 30, 35, 40]
 pf_list = [(0, 0, pz) for pz in range(0, 7)]
 q_list = [(0, 0, 0)]
@@ -35,7 +34,6 @@ tau_skip = 1
 SVDCUT = 1e-7          # only drawn as a reference line
 LOO_STRIDE = 1        # use every Nth leave-one-out set; 1 = all of them
 N_WORKERS = 30
-# ---------------------------------------------------------------------------
 
 
 def build_samples(tgf, pf, q):
