@@ -117,6 +117,7 @@ def fit_one_point(tgf, pf, q):
                 w_index.append(iw_fit)
                 tau_all.append(float(tau))
                 T_all.append(float(tsep))
+                #fit only the real part
                 vector_data.append(ratio_jk[:, iop, w_all.index(w),tsep_all.index(tsep), tau].real)
     
     #x is the dictionary of coordinates of used data-points 
