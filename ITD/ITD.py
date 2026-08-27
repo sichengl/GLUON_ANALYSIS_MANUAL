@@ -57,7 +57,7 @@ for flow in tgf_list:
         with h5py.File(INPUT_BAREM / name, "r") as f:
             blocks.append(f["bare_matrix_element_jk"][:].real)
             w_list = f["w_list"][:]
-    M = np.stack(blocks, axis=1)
+    M = np.stack(blocks, axis=1) #This axis argument is where the stack index goes, here it's pf
     if E.shape[0] != M.shape[0]:
         print(f"WARNING: 2pt has {E.shape[0]} samples, bareM has {M.shape[0]}",
               flush=True)
