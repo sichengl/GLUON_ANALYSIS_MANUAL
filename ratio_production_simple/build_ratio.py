@@ -187,11 +187,7 @@ if __name__ == "__main__":
                          f"_q{q[0]}_{q[1]}_{q[2]}.h5")
             for tgf in tgf_list for pf in pf_list for q in q_list
         ]
-        missing = [p.name for p in paths if not p.exists()]
-        if missing:
-            raise SystemExit(
-                f"{len(missing)} of {len(paths)} input files are missing, "
-                f"e.g. {missing[0]}")
+
     print(f"{len(paths)} input files", flush=True)
 
     with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:
