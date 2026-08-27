@@ -70,7 +70,7 @@ def leave_one_out_spectra(samples):
     for i, k in enumerate(left_out):
         sub = np.delete(meas, k, axis=0)
         corr = np.corrcoef(sub, rowvar=False)
-        ev_loo[i] = np.linalg.eigvalsh(corr)
+        ev_loo[i] = np.sort(np.linalg.eigvalsh(corr))
     return ev_loo, ev_all, np.trace(corr_all), n
 
 
