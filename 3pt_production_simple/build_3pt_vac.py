@@ -5,6 +5,12 @@ import numpy as np
 FF_DIR = Path("/lustre/orion/lgt132/scratch/sicheng/GPD_calc/FF_data")
 PT2_DIR = Path("/lustre/orion/lgt132/scratch/sicheng/GPD_calc_v3/2pt_production")
 
+"""
+From now on we work locally. It turns out that 2pt and FF are not that big. They could fit in my new laptop. 
+Let's just pack them up and analyze on laptop
+"""
+
+
 cfg_list = [c for c in range(204, 204 + 6*800, 6) if c != 4314]
 Ls, T = 32, 96
 pt2_rho, pt2_mom_frac = "3.25", "0p6"
