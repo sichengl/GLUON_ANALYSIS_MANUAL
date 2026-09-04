@@ -2,6 +2,10 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+#build 3pt for local analysis
+#vacuum subtracted
+#save both forward and backward propagation in one file (two datasets)
+
 FF_DIR = Path("/lustre/orion/lgt132/scratch/sicheng/GPD_calc/FF_data")
 PT2_DIR = Path("/lustre/orion/lgt132/scratch/sicheng/GPD_calc_v3/2pt_production")
 
