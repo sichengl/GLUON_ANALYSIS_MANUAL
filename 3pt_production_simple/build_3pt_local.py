@@ -6,19 +6,20 @@ def jackknife(x):
     n_cfg = x.shape[0]
     return (x.sum(axis=0) - x) / (n_cfg - 1)  
 
+F_or_B = "forward"
 gamma = "45"
-FF_path = "/Users/mcp3270/2pt_plot_meff/local_analysis/FF_q000_tgf20-25-30-35-40_tins18_ncfg799.h5"
-pt2_path = f"/Users/mcp3270/2pt_plot_meff/local_analysis/forward_2pt_N40_rho3.25_G{gamma}_ez_momfrac0p6_tsep18_ncfg799.h5"
+FF_path = "/Users/mcp3270/2pt_plot_meff/local_analysis/FF_q000_tgf20-25-30-35-40_fb_tins18_ncfg799.h5"
+pt2_path = f"/Users/mcp3270/2pt_plot_meff/local_analysis/2pt_N40_rho3.25_G{gamma}_ez_momfrac0p6_fb_tsep18_ncfg799.h5"
 Ls = 32
 SRC_PHASE_SIGN = -1    # in my convention pi = pf + q, phase for FF is iq(x-xsrc) so -1 
 WL_PHASE_SIGN = +1     # Fix the centering of Wilson line
 FF_file = h5py.File(FF_path, "r")
-FF_cfg = FF_file["FF"]                                   # [cfg, tsrc, munu, rhosig, tgf, w, q, tau] = (799, 8, 6, 6, 5, 10, 1, 18)
+FF_cfg = FF_file[f"FF_{F_or_B}"]                                   # [cfg, tsrc, munu, rhosig, tgf, w, q, tau] = (799, 8, 6, 6, 5, 10, 1, 18)
 q_list = FF_file["q_list"][:]                            # [q, 3] = (1, 3)
 w_list = FF_file["w_list"][:]                            # [w] = (10,)
 print(FF_cfg.shape)
 pt2_file = h5py.File(pt2_path, "r")
-pt2_cfg = pt2_file["pt2"][:]                           # [cfg, tsrc, xsrc, ysrc, zsrc, pf, tsep] = (799, 8, 4, 4, 8, 7, 18)
+pt2_cfg = pt2_file[f"pt2_{F_or_B}"][:]                           # [cfg, tsrc, xsrc, ysrc, zsrc, pf, tsep] = (799, 8, 4, 4, 8, 7, 18)
 cfg_list = pt2_file["cfg_list"][:]                       # [cfg] = (799,)
 print(pt2_cfg.shape)
 
@@ -79,13 +80,14 @@ op_names = ["TXTX", "TYTY", "XYXY", "TXTXpTYTY", "TXTXpTYTYm2XYXY","TXTXpTYTYp2X
 pf_list = pt2_file["pf_list"][:]                       # [pf, 3] = (7, 3)
 tgf_list = FF_file["tgf_list"][:]                      # [tgf] = (5,)
 out_path = (f"/Users/mcp3270/2pt_plot_meff/local_analysis/"
-            f"pt3_jk_method1_G{gamma}_q000_tgf20-25-30-35-40_src{SRC_PHASE_SIGN:+d}_wl{WL_PHASE_SIGN:+d}.h5")
+            f"pt3_jk_method1_G{gamma}_{F_or_B}_q000_tgf20-25-30-35-40_src{SRC_PHASE_SIGN:+d}_wl{WL_PHASE_SIGN:+d}.h5")
 
 with h5py.File(out_path, "w") as f:
     for iop, name in enumerate(op_names):
         f.create_dataset(f"pt3_jk/{name}", data=pt3_vac_subtracted[iop])   # [jk, tgf, w, q, tsep, tau, pf] = (799, 5, 10, 1, 18, 18, 7)
     f.create_dataset("pt2_jk", data=pt2_jk)                                # [jk, pf, tsep, q] = (799, 7, 18, 1)
     f.create_dataset("operator_names", data=np.array(op_names, dtype="S"))
+    f.attrs["forward_or_backward"] = F_or_B
     f.create_dataset("pf_list", data=pf_list)
     f.create_dataset("tgf_list", data=tgf_list)
     f.create_dataset("w_list", data=w_list)
@@ -99,6 +101,7 @@ with h5py.File(out_path, "w") as f:
     f.attrs["jackknife"] = "delete-one, replicate k = mean over all cfgs except cfg_list[k]"
 print("saved", out_path)
 
+#New method given by claude. checked to give consistent result with my old method
 #multiply jackknifed 2pt and FF per-tsrc then average tsrc
 pt2_src_jk = jackknife(pt2_src)                    # [jk, tsrc, pf, tsep, q] = (799, 8, 7, 18, 1)
 op_src_jk = [jackknife(op) for op in operators]    # each [jk, tsrc, tgf, w, q, tau] = (799, 8, 5, 10, 1, 18)
@@ -109,11 +112,12 @@ for iop in range(len(operators)):
                                       ["jk", "tgf", "w", "q", "tsep", "tau", "pf"]) / 8   # [jk, tgf, w, q, tsep, tau, pf]
     pt3_vac_subtracted_m2.append(pt2FF_jk[iop] - vac_jk)
 out_path = (f"/Users/mcp3270/2pt_plot_meff/local_analysis/"
-            f"pt3_jk_method2_G{gamma}_q000_tgf20-25-30-35-40_src{SRC_PHASE_SIGN:+d}_wl{WL_PHASE_SIGN:+d}.h5")
+            f"pt3_jk_method2_G{gamma}_{F_or_B}_q000_tgf20-25-30-35-40_src{SRC_PHASE_SIGN:+d}_wl{WL_PHASE_SIGN:+d}.h5")
 with h5py.File(out_path, "w") as f:
     for iop, name in enumerate(op_names):
         f.create_dataset(f"pt3_jk/{name}", data=pt3_vac_subtracted_m2[iop])   # [jk, tgf, w, q, tsep, tau, pf]
     f.create_dataset("pt2_jk", data=pt2_jk)
+    f.attrs["forward_or_backward"] = F_or_B
     f.create_dataset("operator_names", data=np.array(op_names, dtype="S"))
     f.create_dataset("pf_list", data=pf_list)
     f.create_dataset("tgf_list", data=tgf_list)
@@ -128,7 +132,8 @@ with h5py.File(out_path, "w") as f:
     f.attrs["jackknife"] = "delete-one, replicate k = mean over all cfgs except cfg_list[k]"
 print("saved", out_path)
 
-#Method 3: multiply the per-cfg source averages on each cfg, then jackknife (biased by ~1/n_tsrc of the signal; comparison only)
+#My alternative method. We decided to discard this method a few months ago. Now claude has shown it's wrong.
+#No formula needed to disprove it. When we have only one tsrc, this gives exactly zero. So it's wrong.
 pt3_vac_subtracted_m3 = []
 for iop in range(len(operators)):
     vac_cfg = contract(pt2_avg,     ["cfg", "pf", "tsep", "q"],
@@ -136,12 +141,13 @@ for iop in range(len(operators)):
                                     ["cfg", "tgf", "w", "q", "tsep", "tau", "pf"])   # [cfg, tgf, w, q, tsep, tau, pf]   product on each cfg
     pt3_vac_subtracted_m3.append(pt2FF_jk[iop] - jackknife(vac_cfg))                 # [jk, tgf, w, q, tsep, tau, pf]
 out_path = (f"/Users/mcp3270/2pt_plot_meff/local_analysis/"
-            f"pt3_jk_method3_G{gamma}_q000_tgf20-25-30-35-40_src{SRC_PHASE_SIGN:+d}_wl{WL_PHASE_SIGN:+d}.h5")
+            f"pt3_jk_method3_G{gamma}_{F_or_B}_q000_tgf20-25-30-35-40_src{SRC_PHASE_SIGN:+d}_wl{WL_PHASE_SIGN:+d}.h5")
 with h5py.File(out_path, "w") as f:
     for iop, name in enumerate(op_names):
         f.create_dataset(f"pt3_jk/{name}", data=pt3_vac_subtracted_m3[iop])   # [jk, tgf, w, q, tsep, tau, pf]
     f.create_dataset("pt2_jk", data=pt2_jk)
     f.create_dataset("operator_names", data=np.array(op_names, dtype="S"))
+    f.attrs["forward_or_backward"] = F_or_B
     f.create_dataset("pf_list", data=pf_list)
     f.create_dataset("tgf_list", data=tgf_list)
     f.create_dataset("w_list", data=w_list)
