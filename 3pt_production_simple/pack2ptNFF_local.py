@@ -30,8 +30,8 @@ pt2_cfg_forward = np.zeros((len(cfg_list),8,4,4,8,len(pf_index_list),18),"<c16")
 pt2_cfg_backward = np.zeros((len(cfg_list),8,4,4,8,len(pf_index_list),18),"<c16")
 FF_cfg_forward = np.zeros((len(cfg_list),8,6,6,len(tgf_index_list),10,len(q_list),tins_max), "<c16")
 FF_cfg_backward = np.zeros((len(cfg_list),8,6,6,len(tgf_index_list),10,len(q_list),tins_max), "<c16")
-forward_index = np.arange(tsep_max)  #0,1,2,3,4,...,18
-backward_index = (-np.arange(tsep_max)) % T#0,95,94,...,-
+forward_index = np.arange(tsep_max)          #0,1,2,3,4,...,18
+backward_index = (-np.arange(tsep_max)) % T  #0,95,94,...,79
 backward_index = backward_index[0:18]
 for icfg , cfg in enumerate(cfg_list):
     print(f"reading cfg = {cfg}")
