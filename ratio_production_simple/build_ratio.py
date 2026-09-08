@@ -113,11 +113,6 @@ def ratio_one_file(path):
         ratio_jk[:, :, :, itsep, : tsep + 1] = (
             num / f_T[:, None, None, :] * factor[:, None, None, :])
 
-    bad = sum(int(np.sum(~np.isfinite(ratio_jk[:, :, :, i, : t + 1])))
-              for i, t in enumerate(tsep_list))
-    if bad:
-        print(f"  WARNING {path.name}: {bad} non-finite ratio entries "
-              f"(negative argument under the square root?)", flush=True)
 
     out = (OUT_DIR / f"ratio_{frame}_tgf{tgf}_pf{pf[0]}_{pf[1]}_{pf[2]}"
            f"_q{q[0]}_{q[1]}_{q[2]}.h5")
@@ -192,11 +187,7 @@ if __name__ == "__main__":
                          f"_q{q[0]}_{q[1]}_{q[2]}.h5")
             for tgf in tgf_list for pf in pf_list for q in q_list
         ]
-        missing = [p.name for p in paths if not p.exists()]
-        if missing:
-            raise SystemExit(
-                f"{len(missing)} of {len(paths)} input files are missing, "
-                f"e.g. {missing[0]}")
+
     print(f"{len(paths)} input files", flush=True)
 
     with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:

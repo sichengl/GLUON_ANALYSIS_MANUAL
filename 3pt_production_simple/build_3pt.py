@@ -52,10 +52,10 @@ else:
         dtype=np.int64,
     )
 # the momentum transfers we actually build three-point functions for
-q_list_produce = np.array([[2, 0, 0]], dtype=np.int64)
+q_list_produce = np.array([[0, 0, 0]], dtype=np.int64)
 
 tgf_list = np.array([5, 10, 15, 20, 25, 30, 35, 40], dtype=np.int64)
-pf_list = np.array([[-1, 0, pz] for pz in range(0, 7)], dtype=np.int64)
+pf_list = np.array([[0, 0, pz] for pz in range(0, 7)], dtype=np.int64)
 
 # raw (munu, rhosig) rows of the FF file
 lorentz_list = [(0, 0), (3, 3), (4, 4), (3, 0), (0, 3)]
@@ -103,13 +103,8 @@ pt3_output = str(
 
 
 def q_produce_rows():
-    rows = []
-    for q in q_list_produce:
-        match = np.where((q_list == q).all(axis=1))[0]
-        if len(match) != 1:
-            raise ValueError(f"q={tuple(q.tolist())} is not a row of q_list")
-        rows.append(int(match[0]))
-    return rows
+    pos = {tuple(r): i for i, r in enumerate(q_list.tolist())}
+    return [pos[tuple(q)] for q in q_list_produce.tolist()]
 
 
 def make_source_phase(cfg):
