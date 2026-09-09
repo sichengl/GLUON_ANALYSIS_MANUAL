@@ -22,21 +22,16 @@ from pyquda_benchmark.meas.mom_smearing import *
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--cfg", type=int, required=True)
-parser.add_argument("--ix",type=int, required=True)
 parser.add_argument("--quark",type=float, required=True)
 parser.add_argument("--rho",type=float,required=True)
 args = parser.parse_args()
-start_cfg = args.cfg
-ix = args.ix
 quark_mom_frac = args.quark
 rho = args.rho
 Ls = 32
 Lt = 96
-n = 1
+n = 10  #number of configs to measure, starting from 204, with step size 6
 mom_min = 0
 mom_max = 6
-
 smear_steps = 40
 smear_mom = [0, 0, quark_mom_frac*mom_max]
 smear_mom_x_str = ("%.3f" % quark_mom_frac).rstrip("0").rstrip(".").replace(".", "p") #the string of momentum smearing info, to be used in saving
@@ -44,29 +39,33 @@ k = np.array(smear_mom)
 k1 =  k
 k2 = -k
 
-ncfg = (start_cfg - 204) // 6 
-spatial_shift = ncfg * 3
-time_shift = ncfg * 5
-t_src_list = [(t + time_shift) % Lt for t in range(0, Lt, 12)]
-x_src_list = [(x + spatial_shift) % Ls for x in range(0, Ls, 8)]
-shifted_x = x_src_list[ix]
-x_src_list = [shifted_x]
-y_src_list = [(y + spatial_shift) % Ls for y in range(0, Ls, 8)]
-z_src_list = [(z + spatial_shift) % Ls for z in range(0, Ls, 4)]
+cfg_list = np.arange(204, 204 + 800*6, 6)   # The complete cfg list, 800 configs
+ncfg     = (cfg_list - 204) // 6          # (n,)  sequence index 0..n-1
+
+# unshifted source grids
+t_base = np.arange(0, Lt, 12)   # (8,)
+x_base = np.arange(0, Ls,  8)   # (4,)
+y_base = np.arange(0, Ls,  8)   # (4,)
+z_base = np.arange(0, Ls,  4)   # (8,)
+
+# broadcast (n,1) + (1,nsrc) -> (n, nsrc); index as [icfg, isrc]
+t_src = (t_base[None, :] + 5*ncfg[:, None]) % Lt   # (n, 8)
+x_src = (x_base[None, :] + 3*ncfg[:, None]) % Ls   # (n, 4)
+y_src = (y_base[None, :] + 3*ncfg[:, None]) % Ls   # (n, 4)
+z_src = (z_base[None, :] + 3*ncfg[:, None]) % Ls   # (n, 8)
 run_parameters = {
     "Ls": Ls,
     "Lt": Lt,
     "cfgs_to_meas": n,
-    "start_cfg": start_cfg,
     "rho": rho,
     "smear_steps": smear_steps,
     "smear_mom": smear_mom,
     "mom_min": mom_min,
     "mom_max": mom_max,
-    "x_src_list": x_src_list,
-    "y_src_list": y_src_list,
-    "z_src_list": z_src_list,
-    "t_src_list": t_src_list,
+    "x_src_list_shifted": x_src,
+    "y_src_list_shifted": y_src,
+    "z_src_list_shifted": z_src,
+    "t_src_list_shifted": t_src,
 }
 
 
@@ -85,9 +84,9 @@ for px in [0,-1,1]:
 momentum_list = np.array(momentum_list, dtype=np.int64)
 
 
-measurement_list = [start_cfg]
-pion_45 = cp.zeros((len(measurement_list),len(t_src_list),len(x_src_list),len(y_src_list),len(z_src_list), len(momentum_list), latt_info.Lt), "<c16")
-pion_5 = cp.zeros((len(measurement_list),len(t_src_list),len(x_src_list),len(y_src_list),len(z_src_list), len(momentum_list), latt_info.Lt), "<c16")
+measurement_list = cfg_list[0:n]
+pion_45 = cp.zeros((len(measurement_list),len(t_src[1]),len(x_src[1]),len(y_src[1]),len(z_src[1]), len(momentum_list), latt_info.Lt), "<c16")
+pion_5 = cp.zeros((len(measurement_list),len(t_src[1]),len(x_src[1]),len(y_src[1]),len(z_src[1]), len(momentum_list), latt_info.Lt), "<c16")
 count = 0
 mean_rsqr = 0.0
 for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
@@ -126,13 +125,13 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
     #core.getLogger().info(f"LOADING GAUGE")
     #dirac.loadGauge(gauge_hyp)
     
-    for t_idx, t_src in enumerate(t_src_list):
-        for x_idx, x_src in enumerate(x_src_list):
-            for y_idx, y_src in enumerate(y_src_list):
-                for z_idx, z_src in enumerate(z_src_list):
+    for t_idx, t_src in enumerate(t_src[i_cfg]):
+        for x_idx, x_src in enumerate(x_src[i_cfg]):
+            for y_idx, y_src in enumerate(y_src[i_cfg]):
+                for z_idx, z_src in enumerate(z_src[i_cfg]):
 
                     #inner_loop = perf_counter()
-                    src_pos = [x_src,y_src,z_src,t_src]
+                    src_pos = [x_src[x_idx],y_src[y_idx],z_src[z_idx],t_src[t_idx]]
                     core.getLogger().info(f"SOURCE POSITION = {src_pos}")
                     momentum_phases = phase.MomentumPhase(latt_info).getPhases( momentum_list, src_pos )
 
@@ -224,8 +223,8 @@ if latt_info.mpi_rank == 0:
     g5_dir = f"{current_dir}/N{smear_steps}_rho{rho}_G5_ez_momfrac{smear_mom_x_str}"
     os.makedirs(g45_dir, exist_ok=True)
     os.makedirs(g5_dir, exist_ok=True)
-    g45_filename = f"pion_ix{ix}_x{shifted_x}_N{smear_steps}_rho{rho}_frac{smear_mom_x_str}_G45_cfg{start_cfg}.h5"
-    g5_filename = f"pion_ix{ix}_x{shifted_x}_N{smear_steps}_rho{rho}_frac{smear_mom_x_str}_G5_cfg{start_cfg}.h5"
+    g45_filename = f"pion_N{smear_steps}_rho{rho}_frac{smear_mom_x_str}_G45_cfg{measurement_list[0]}-{measurement_list[-1]}.h5"
+    g5_filename = f"pion_N{smear_steps}_rho{rho}_frac{smear_mom_x_str}_G5_cfg{measurement_list[0]}-{measurement_list[-1]}.h5"
 
     with h5py.File(f"{g45_dir}/{g45_filename}", "w") as f:
         dset = f.create_dataset("pion_45", data=pion_45_np)
@@ -233,10 +232,10 @@ if latt_info.mpi_rank == 0:
         dset.attrs["dim_spec"] = np.array(["measurement_list", "t_src_list","x_src_list","y_src_list","z_src_list","momentum_list", "time"], dtype=h5py.string_dtype())
         dset.attrs["measurements"] = measurement_list
         dset.attrs["momentums"] = momentum_list
-        dset.attrs["x_src_list"] = x_src_list
-        dset.attrs["y_src_list"] = y_src_list
-        dset.attrs["z_src_list"] = z_src_list
-        dset.attrs["t_src_list"] = t_src_list
+        dset.attrs["x_src_list"] = x_src
+        dset.attrs["y_src_list"] = y_src
+        dset.attrs["z_src_list"] = z_src
+        dset.attrs["t_src_list"] = t_src
         dset.attrs["dim_time"] = np.arange(latt_info.Lt)
         #dset.attrs["mean_rsqr"] = mean_rsqr
 
@@ -246,10 +245,10 @@ if latt_info.mpi_rank == 0:
         dset.attrs["dim_spec"] = np.array(["measurement_list", "t_src_list","x_src_list","y_src_list","z_src_list","momentum_list", "time"], dtype=h5py.string_dtype())
         dset.attrs["measurements"] = measurement_list
         dset.attrs["momentums"] = momentum_list
-        dset.attrs["x_src_list"] = x_src_list
-        dset.attrs["y_src_list"] = y_src_list
-        dset.attrs["z_src_list"] = z_src_list
-        dset.attrs["t_src_list"] = t_src_list
+        dset.attrs["x_src_list"] = x_src
+        dset.attrs["y_src_list"] = y_src
+        dset.attrs["z_src_list"] = z_src
+        dset.attrs["t_src_list"] = t_src
         dset.attrs["dim_time"] = np.arange(latt_info.Lt)
         #dset.attrs["mean_rsqr"] = mean_rsqr
 """
