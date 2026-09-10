@@ -38,18 +38,30 @@ wilson_line_list = list(range(0,16))
 src_list = list(range(0,6))
 sink_list = list(range(0,6))
 hyp_smear_list = list(range(0,21)) 
-momentum_list_sink = []
-for px in [0, -1, 1]:
-    for py in [0, -1, 1]:
-        for pz in [0, -1, 1]:
-            momentum_list_sink.append([px, py, pz])
+q_phase_sign = 1
+symmetric_qlist = [[0, 0, 0], [-2, 0, 0], [2, 0, 0], [0, -2, 0], [0, 2, 0]]
+asymmetric_qlist = [
+    [px, py, pz]
+    for px in [0, -1, 1]
+    for py in [0, -1, 1]
+    for pz in [0, -1, 1]
+]
+symmetric_fourier_qlist = (
+    q_phase_sign * np.asarray(symmetric_qlist, dtype=np.int64)
+).tolist()
+asymmetric_fourier_qlist = (
+    q_phase_sign * np.asarray(asymmetric_qlist, dtype=np.int64)
+).tolist()
 
 for i_cfg,cfg in enumerate(measurement_list):
     gauge = io.readMILCGauge(f"/lustre/orion/lgt132/world-shared/DATA/MILC/a09m310/gauge/l3296f211b630m0074m037m440e.{cfg}")
     if i_cfg == 0:
         latt_info=gauge.latt_info
-        momentum_phase_sink = phase.MomentumPhase(latt_info).getPhases(momentum_list_sink)
-        corr = cp.zeros((len(measurement_list),len(src_list),len(sink_list),len(hyp_smear_list), len(wilson_line_list),len(momentum_list_sink),latt_info.Lt), "<c16")
+        #build phase and containers for symmetric and asymmetric 
+        symmetric_phase = phase.MomentumPhase(latt_info).getPhases(symmetric_fourier_qlist)
+        asymmetric_phase = phase.MomentumPhase(latt_info).getPhases(asymmetric_fourier_qlist)
+        symmetric_corr = cp.zeros((len(measurement_list),len(src_list),len(sink_list),len(hyp_smear_list), len(wilson_line_list),len(symmetric_qlist),latt_info.Lt), "<c16")
+        asymmetric_corr = cp.zeros((len(measurement_list),len(src_list),len(sink_list),len(hyp_smear_list), len(wilson_line_list),len(asymmetric_qlist),latt_info.Lt), "<c16")
     for i_smear, smear in enumerate(hyp_smear_list):
         
         #deviceSynchronize()
@@ -57,7 +69,7 @@ for i_cfg,cfg in enumerate(measurement_list):
         if i_smear != 0:
             gauge.hypSmear(1, 0.75, 0.6, 0.3, -1,True,True)
         #deviceSynchronize()
-        core.getLogger().info(f"WILSON FLOW #{cfg}: {perf_counter() - s} secs")
+        core.getLogger().info(f"HYP smear #{cfg}: {perf_counter() - s} secs")
         
         """
         gauge_fixing_params = {
@@ -116,7 +128,7 @@ for i_cfg,cfg in enumerate(measurement_list):
             (Fij_trace_norm2 + Fi4_trace_norm2) / (Fij_norm2 + Fi4_norm2 + 1e-300)
         ).get().item()
         core.getLogger().info(
-            f"TRACE IMPACT #{cfg} t_gf={i_smear * smear_len * 0.01:.3f}: "
+            f"TRACE IMPACT #{cfg} {smear} steps of HYP smear: "
             f"Fij={trace_ratio_Fij:.6e}, Fi4={trace_ratio_Fi4:.6e}, all={trace_ratio_all:.6e}"
         )
 
@@ -154,9 +166,8 @@ for i_cfg,cfg in enumerate(measurement_list):
             for i_src, src in enumerate(src_list):
                 for i_sink, sink in enumerate(sink_list):
 
-                    corr[i_cfg,i_src,i_sink,i_smear,i_W] += contract("pwtzyx,wtzyxij,wtzyxji->pt", momentum_phase_sink,Fmunu[i_src],Fmunu_shift[i_sink] )
-
-
+                    symmetric_corr[i_cfg,i_src,i_sink,i_smear,i_W] += contract("pwtzyx,wtzyxij,wtzyxji->pt", symmetric_phase,Fmunu[i_src],Fmunu_shift[i_sink] )
+                    asymmetric_corr[i_cfg,i_src,i_sink,i_smear,i_W] += contract("pwtzyx,wtzyxij,wtzyxji->pt", asymmetric_phase,Fmunu[i_src],Fmunu_shift[i_sink] )
         #deviceSynchronize()
         core.getLogger().info(f"SHIFT #{cfg}: {perf_counter() - s} secs")
         
@@ -166,13 +177,12 @@ for i_cfg,cfg in enumerate(measurement_list):
 
 
 deviceSynchronize()
-corr_real_norm2 = cp.vdot(corr.real.ravel(), corr.real.ravel()).real
-corr_imag_norm2 = cp.vdot(corr.imag.ravel(), corr.imag.ravel()).real
-corr_imag_ratio = cp.sqrt(corr_imag_norm2 / (corr_real_norm2 + 1e-300)).get().item()
-core.getLogger().info(f"LOCAL FF IMAG IMPACT #{start_cfg}: ||Im corr||/||Re corr|| = {corr_imag_ratio:.6e}")
+symmetric_corr_imag_ratio = cp.sqrt(cp.vdot(symmetric_corr.imag.ravel(), symmetric_corr.imag.ravel()).real / (cp.vdot(symmetric_corr.real.ravel(), symmetric_corr.real.ravel()).real + 1e-300)).get().item()
+asymmetric_corr_imag_ratio = cp.sqrt(cp.vdot(asymmetric_corr.imag.ravel(), asymmetric_corr.imag.ravel()).real / (cp.vdot(asymmetric_corr.real.ravel(), asymmetric_corr.real.ravel()).real + 1e-300)).get().item()
+core.getLogger().info(f"LOCAL FF IMAG IMPACT #{start_cfg}: symmetric={symmetric_corr_imag_ratio:.6e}, asymmetric={asymmetric_corr_imag_ratio:.6e}")
 
-
-tmp = core.gatherLattice(corr.get(), [6, -1, -1, -1])
+symmetric_tmp = core.gatherLattice(symmetric_corr.get(), [6, -1, -1, -1])
+asymmetric_tmp = core.gatherLattice(asymmetric_corr.get(), [6, -1, -1, -1])
 
 
 
@@ -182,25 +192,37 @@ rank = getMPIRank()
 
 if rank == 0:
 
-    tmp_cpu = tmp
-    imag_ratio_all = np.linalg.norm(tmp_cpu.imag) / (np.linalg.norm(tmp_cpu.real) + 1e-300)
-    imag_ratio_q0 = np.linalg.norm(tmp_cpu[..., 0, :].imag) / (np.linalg.norm(tmp_cpu[..., 0, :].real) + 1e-300)
-    imag_ratio_qnonzero = np.linalg.norm(tmp_cpu[..., 1:, :].imag) / (np.linalg.norm(tmp_cpu[..., 1:, :].real) + 1e-300)
-    print(
-        f"GLOBAL FF IMAG IMPACT cfg{start_cfg}: "
-        f"all={imag_ratio_all:.6e}, q0={imag_ratio_q0:.6e}, q_nonzero={imag_ratio_qnonzero:.6e}"
-    )
+    symmetric_tmp_cpu = symmetric_tmp
+    asymmetric_tmp_cpu = asymmetric_tmp
+    for name, arr in [("SYMMETRIC", symmetric_tmp_cpu), ("ASYMMETRIC", asymmetric_tmp_cpu)]:
+        ratio_all = np.linalg.norm(arr.imag) / (np.linalg.norm(arr.real) + 1e-300)
+        ratio_q0 = np.linalg.norm(arr[..., 0, :].imag) / (np.linalg.norm(arr[..., 0, :].real) + 1e-300)
+        ratio_qnz = np.linalg.norm(arr[..., 1:, :].imag) / (np.linalg.norm(arr[..., 1:, :].real) + 1e-300)
+        print(f"GLOBAL {name} FF IMAG IMPACT cfg{start_cfg}: all={ratio_all:.6e}, q0={ratio_q0:.6e}, q_nonzero={ratio_qnz:.6e}")
 
-    filename = f"/lustre/orion/lgt132/scratch/sicheng/GPD_calc/FF_data/FF_opp_smear_{smear_len*len(smear_list)}_cfg{start_cfg}.h5"
+    filename = (f"/lustre/orion/lgt132/scratch/sicheng/GPD_calc/FF_data/"
+            f"FF_opp_symmetric_asymmetric_hyp0-{len(hyp_smear_list)-1}"
+            f"_w{wilson_line_list[0]}-{wilson_line_list[-1]}_cfg{start_cfg}.h5")
+
     with h5py.File(filename, 'w') as f:
-        data = f.create_dataset('corr', data=tmp_cpu)
-        data.attrs["dim_spec"] = "cfg, munu, rhosig, t_gf, wilson_list, mom, t"
-        data.attrs['number_of_steps_each_cycle'] = smear_len
-        data.attrs['size_of_each_step'] = 0.01
-        data.attrs['number_of_smears'] = smear_list
-        data.attrs['wilson_line_list'] = wilson_line_list
-        data.attrs['momentum_list_sink'] = momentum_list_sink
-        data.attrs['config_list'] = measurement_list
+        symmetric_data = f.create_dataset('symmetric_corr', data=symmetric_tmp_cpu)
+        asymmetric_data = f.create_dataset('asymmetric_corr', data=asymmetric_tmp_cpu)
+        f.create_dataset('symmetric_qlist', data=np.asarray(symmetric_qlist, dtype=np.int64))
+        f.create_dataset('asymmetric_qlist', data=np.asarray(asymmetric_qlist, dtype=np.int64))
+        f.create_dataset('hyp_indices', data=np.asarray(hyp_smear_list, dtype=np.int64))
+        f.create_dataset('wilson_line_list', data=np.asarray(wilson_line_list, dtype=np.int64))
+        symmetric_data.attrs["dim_spec"] = "cfg, munu, rhosig, hyp, wilson_list, mom, t"
+        asymmetric_data.attrs["dim_spec"] = "cfg, munu, rhosig, hyp, wilson_list, mom, t"
+        symmetric_data.attrs['hyp_alpha'] = [0.75, 0.6, 0.3]
+        symmetric_data.attrs['hyp_dir_ignore'] = -1
+        symmetric_data.attrs['number_of_smears'] = hyp_smear_list
+        symmetric_data.attrs['wilson_line_list'] = wilson_line_list
+        symmetric_data.attrs['config_list'] = measurement_list
+        f.attrs['q_phase_sign'] = q_phase_sign
+        f.attrs['momentum_phase'] = 'exp(+i q_phase_sign q_code dot x)'
+        f.attrs['momentum_relation'] = 'pi_code=pf_code+q_phase_sign*q_code'
+        f.attrs['physical_transfer_convention'] = 'Delta_phys=P_f-P_i=-q_phase_sign*q_code'
+        f.attrs['bilocal_direction'] = 'negative z; endpoints x and x-z before centering phase'
     #cp.save(f"fmunu_corr_smear_{smear_len*smear_parts}_insteps_from0_MILC.npy",tmp)
 
     """ 
