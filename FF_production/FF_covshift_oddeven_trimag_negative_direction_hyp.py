@@ -16,7 +16,7 @@ from pyquda_utils.core import X, Y, Z, T
 import cupy as cp
 from opt_einsum import contract
 from pyquda_utils.core import LatticeFermion, LatticeGauge
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import h5py
 import numpy as np
 import json
@@ -32,12 +32,12 @@ args = parser.parse_args()
 core.init([1, 1, 1, 1], resource_path="/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/.cache/quda")
 parameters = json.loads(args.config)
 start_cfg = parameters["cfg_n"]
-num_cfg = 1
-measurement_list = [start_cfg]
+num_cfg = parameters.get("num_cfg", 1)                          # configurations per process; default 1 = old behaviour
+measurement_list = [start_cfg + 6 * i for i in range(num_cfg)]
 wilson_line_list = list(range(0,16))
 src_list = list(range(0,6))
 sink_list = list(range(0,6))
-hyp_smear_list = list(range(0,21)) 
+hyp_smear_list = list(range(0,16)) 
 q_phase_sign = 1
 symmetric_qlist = [[0, 0, 0], [-2, 0, 0], [2, 0, 0], [0, -2, 0], [0, 2, 0]]
 asymmetric_qlist = [
@@ -176,79 +176,80 @@ for i_cfg,cfg in enumerate(measurement_list):
 #cp.save("fmunu_corr.npy",corr)
 
 
-deviceSynchronize()
-symmetric_corr_imag_ratio = cp.sqrt(cp.vdot(symmetric_corr.imag.ravel(), symmetric_corr.imag.ravel()).real / (cp.vdot(symmetric_corr.real.ravel(), symmetric_corr.real.ravel()).real + 1e-300)).get().item()
-asymmetric_corr_imag_ratio = cp.sqrt(cp.vdot(asymmetric_corr.imag.ravel(), asymmetric_corr.imag.ravel()).real / (cp.vdot(asymmetric_corr.real.ravel(), asymmetric_corr.real.ravel()).real + 1e-300)).get().item()
-core.getLogger().info(f"LOCAL FF IMAG IMPACT #{start_cfg}: symmetric={symmetric_corr_imag_ratio:.6e}, asymmetric={asymmetric_corr_imag_ratio:.6e}")
+    deviceSynchronize()
+    symmetric_corr_imag_ratio = cp.sqrt(cp.vdot(symmetric_corr.imag.ravel(), symmetric_corr.imag.ravel()).real / (cp.vdot(symmetric_corr.real.ravel(), symmetric_corr.real.ravel()).real + 1e-300)).get().item()
+    asymmetric_corr_imag_ratio = cp.sqrt(cp.vdot(asymmetric_corr.imag.ravel(), asymmetric_corr.imag.ravel()).real / (cp.vdot(asymmetric_corr.real.ravel(), asymmetric_corr.real.ravel()).real + 1e-300)).get().item()
+    core.getLogger().info(f"LOCAL FF IMAG IMPACT #{cfg}: symmetric={symmetric_corr_imag_ratio:.6e}, asymmetric={asymmetric_corr_imag_ratio:.6e}")
 
-symmetric_tmp = core.gatherLattice(symmetric_corr.get(), [6, -1, -1, -1])
-asymmetric_tmp = core.gatherLattice(asymmetric_corr.get(), [6, -1, -1, -1])
-
-
+    symmetric_tmp = core.gatherLattice(symmetric_corr.get(), [6, -1, -1, -1])
+    asymmetric_tmp = core.gatherLattice(asymmetric_corr.get(), [6, -1, -1, -1])
 
 
-from pyquda_comm import getMPIRank
-rank = getMPIRank()
-
-if rank == 0:
-
-    symmetric_tmp_cpu = symmetric_tmp
-    asymmetric_tmp_cpu = asymmetric_tmp
-    for name, arr in [("SYMMETRIC", symmetric_tmp_cpu), ("ASYMMETRIC", asymmetric_tmp_cpu)]:
-        ratio_all = np.linalg.norm(arr.imag) / (np.linalg.norm(arr.real) + 1e-300)
-        ratio_q0 = np.linalg.norm(arr[..., 0, :].imag) / (np.linalg.norm(arr[..., 0, :].real) + 1e-300)
-        ratio_qnz = np.linalg.norm(arr[..., 1:, :].imag) / (np.linalg.norm(arr[..., 1:, :].real) + 1e-300)
-        print(f"GLOBAL {name} FF IMAG IMPACT cfg{start_cfg}: all={ratio_all:.6e}, q0={ratio_q0:.6e}, q_nonzero={ratio_qnz:.6e}")
-
-    filename = (f"/lustre/orion/lgt132/scratch/sicheng/GPD_calc/FF_data/"
-            f"FF_opp_symmetric_asymmetric_hyp0-{len(hyp_smear_list)-1}"
-            f"_w{wilson_line_list[0]}-{wilson_line_list[-1]}_cfg{start_cfg}.h5")
-
-    with h5py.File(filename, 'w') as f:
-        symmetric_data = f.create_dataset('symmetric_corr', data=symmetric_tmp_cpu)
-        asymmetric_data = f.create_dataset('asymmetric_corr', data=asymmetric_tmp_cpu)
-        f.create_dataset('symmetric_qlist', data=np.asarray(symmetric_qlist, dtype=np.int64))
-        f.create_dataset('asymmetric_qlist', data=np.asarray(asymmetric_qlist, dtype=np.int64))
-        f.create_dataset('hyp_indices', data=np.asarray(hyp_smear_list, dtype=np.int64))
-        f.create_dataset('wilson_line_list', data=np.asarray(wilson_line_list, dtype=np.int64))
-        symmetric_data.attrs["dim_spec"] = "cfg, munu, rhosig, hyp, wilson_list, mom, t"
-        asymmetric_data.attrs["dim_spec"] = "cfg, munu, rhosig, hyp, wilson_list, mom, t"
-        symmetric_data.attrs['hyp_alpha'] = [0.75, 0.6, 0.3]
-        symmetric_data.attrs['hyp_dir_ignore'] = -1
-        symmetric_data.attrs['number_of_smears'] = hyp_smear_list
-        symmetric_data.attrs['wilson_line_list'] = wilson_line_list
-        symmetric_data.attrs['config_list'] = measurement_list
-        f.attrs['q_phase_sign'] = q_phase_sign
-        f.attrs['momentum_phase'] = 'exp(+i q_phase_sign q_code dot x)'
-        f.attrs['momentum_relation'] = 'pi_code=pf_code+q_phase_sign*q_code'
-        f.attrs['physical_transfer_convention'] = 'Delta_phys=P_f-P_i=-q_phase_sign*q_code'
-        f.attrs['bilocal_direction'] = 'negative z; endpoints x and x-z before centering phase'
-    #cp.save(f"fmunu_corr_smear_{smear_len*smear_parts}_insteps_from0_MILC.npy",tmp)
-
-    """ 
-    import matplotlib.pyplot as plt
-    import numpy as np
-    y_data = np.zeros((len(wilson_line_list)),"<c16")
-    print(f"Rank {rank} is plotting...")
-    tmp = cp.mean(tmp,axis=(3))
-    for j in range(0,6):
-        y_data = y_data + tmp[j,j,:,0]
-    t_axis = range(len(y_data))
 
 
-    print(f"ydata is {y_data}")
+    from pyquda_comm import getMPIRank
+    rank = getMPIRank()
+
+    if rank == 0:
+
+        symmetric_tmp_cpu = symmetric_tmp
+        asymmetric_tmp_cpu = asymmetric_tmp
+        for name, arr in [("SYMMETRIC", symmetric_tmp_cpu), ("ASYMMETRIC", asymmetric_tmp_cpu)]:
+            ratio_all = np.linalg.norm(arr.imag) / (np.linalg.norm(arr.real) + 1e-300)
+            ratio_q0 = np.linalg.norm(arr[..., 0, :].imag) / (np.linalg.norm(arr[..., 0, :].real) + 1e-300)
+            ratio_qnz = np.linalg.norm(arr[..., 1:, :].imag) / (np.linalg.norm(arr[..., 1:, :].real) + 1e-300)
+            print(f"GLOBAL {name} FF IMAG IMPACT cfg{start_cfg}: all={ratio_all:.6e}, q0={ratio_q0:.6e}, q_nonzero={ratio_qnz:.6e}")
+
+        filename = (f"/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_data/"
+                f"FF_opp_symmetric_asymmetric_hyp0-{len(hyp_smear_list)-1}"
+                f"_w{wilson_line_list[0]}-{wilson_line_list[-1]}_cfg{cfg}.h5")
+
+        with h5py.File(filename, 'w') as f:
+            symmetric_data = f.create_dataset('symmetric_corr', data=symmetric_tmp_cpu[i_cfg:i_cfg+1])
+            asymmetric_data = f.create_dataset('asymmetric_corr', data=asymmetric_tmp_cpu[i_cfg:i_cfg+1])
+            f.create_dataset('symmetric_qlist', data=np.asarray(symmetric_qlist, dtype=np.int64))
+            f.create_dataset('asymmetric_qlist', data=np.asarray(asymmetric_qlist, dtype=np.int64))
+            f.create_dataset('hyp_indices', data=np.asarray(hyp_smear_list, dtype=np.int64))
+            f.create_dataset('wilson_line_list', data=np.asarray(wilson_line_list, dtype=np.int64))
+            symmetric_data.attrs["dim_spec"] = "cfg, munu, rhosig, hyp, wilson_list, mom, t"
+            asymmetric_data.attrs["dim_spec"] = "cfg, munu, rhosig, hyp, wilson_list, mom, t"
+            symmetric_data.attrs['hyp_alpha'] = [0.75, 0.6, 0.3]
+            symmetric_data.attrs['hyp_dir_ignore'] = -1
+            symmetric_data.attrs['number_of_smears'] = hyp_smear_list
+            symmetric_data.attrs['wilson_line_list'] = wilson_line_list
+            symmetric_data.attrs['config_list'] = [cfg]
+            f.attrs['q_phase_sign'] = q_phase_sign
+            f.attrs['momentum_phase'] = 'exp(+i q_phase_sign q_code dot x)'
+            f.attrs['momentum_relation'] = 'pi_code=pf_code+q_phase_sign*q_code'
+            f.attrs['physical_transfer_convention'] = 'Delta_phys=P_f-P_i=-q_phase_sign*q_code'
+            f.attrs['bilocal_direction'] = 'negative z; endpoints x and x-z before centering phase'
+        #cp.save(f"fmunu_corr_smear_{smear_len*smear_parts}_insteps_from0_MILC.npy",tmp)
+
+        """ 
+        import matplotlib.pyplot as plt
+        import numpy as np
+        y_data = np.zeros((len(wilson_line_list)),"<c16")
+        print(f"Rank {rank} is plotting...")
+        tmp = cp.mean(tmp,axis=(3))
+        for j in range(0,6):
+            y_data = y_data + tmp[j,j,:,0]
+        t_axis = range(len(y_data))
 
 
-    plt.figure(figsize=(8, 6))
-    plt.plot(t_axis,y_data, marker='o', linestyle='-', color='b')
-    plt.yscale('log')
-    plt.xlabel('l')
-    plt.ylabel('Corr')
-    plt.title('Field Strength Correlator')
-    plt.grid(True)
-    plt.savefig('fsc_correlation_plot.png')
-    print("Plot saved successfully.")
-else:
-    pass
-    """
+        print(f"ydata is {y_data}")
+
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(t_axis,y_data, marker='o', linestyle='-', color='b')
+        plt.yscale('log')
+        plt.xlabel('l')
+        plt.ylabel('Corr')
+        plt.title('Field Strength Correlator')
+        plt.grid(True)
+        plt.savefig('fsc_correlation_plot.png')
+        print("Plot saved successfully.")
+    else:
+        pass
+        """
+
 
