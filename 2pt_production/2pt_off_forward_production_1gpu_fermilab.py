@@ -4,18 +4,12 @@ import h5py
 import numpy as np
 import cupy as cp
 from opt_einsum import contract
-from pyquda_utils import core, io, gamma, phase, source, fft, phase_v2
-from pyquda_comm.array import arrayExp
+from pyquda_utils import core, io, gamma, phase
 from time import perf_counter
 from cupy.cuda.runtime import deviceSynchronize
 from tqdm import tqdm
 from mom_smearing import *
-
-#=======================================================================
-#Production file for GPD matrix elements with q=[+-1,+-1,+-1]
-#tunes the mom_fraction of quarks in the meson interpolation functions. 
-#split x_src and store them in seperate files
-
+from itertools import permutations
 
 
 parser = argparse.ArgumentParser()
@@ -75,11 +69,6 @@ G45 = gamma.gamma(7)
 charge = gamma.gamma(10)                          
 parity_p = (gamma.gamma(0) + gamma.gamma(8)) / 2    # (1+gamma4)/2 : nucleon forward
 parity_m = (gamma.gamma(0) - gamma.gamma(8)) / 2    # (1-gamma4)/2 : nucleon backward (enters with a minus sign)
-CG45 = charge @ G45
-CG5  = charge @ G5
-eps_color = cp.zeros((3, 3, 3), dtype=cp.complex128)   
-eps_color[0,1,2] = eps_color[1,2,0] = eps_color[2,0,1] = +1
-eps_color[0,2,1] = eps_color[2,1,0] = eps_color[1,0,2] = -1
 momentum_list = []
 for px in [0,-1,1]:
     for py in [0, -1, 1]:
@@ -95,14 +84,12 @@ proton_45_p = cp.zeros((len(measurement_list), t_src.shape[1], x_src.shape[1], y
 proton_45_m = cp.zeros((len(measurement_list), t_src.shape[1], x_src.shape[1], y_src.shape[1], z_src.shape[1], len(momentum_list), latt_info.Lt), "<c16")   # (1-g4)/2
 proton_5_p  = cp.zeros((len(measurement_list), t_src.shape[1], x_src.shape[1], y_src.shape[1], z_src.shape[1], len(momentum_list), latt_info.Lt), "<c16")
 proton_5_m  = cp.zeros((len(measurement_list), t_src.shape[1], x_src.shape[1], y_src.shape[1], z_src.shape[1], len(momentum_list), latt_info.Lt), "<c16")
-count = 0
-mean_rsqr = 0.0
 for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
     #READ GAUGE
     deviceSynchronize()
     s = perf_counter()
-    gauge_ape = io.readMILCGauge(f"/lustre2/gluonp0/MILC/l3296f211b630m0074m037m440d.{cfg}",checksum=True, reunitarize_sigma=1e-6)
+    gauge_ape = io.readMILCGauge(f"/lustre2/gluonp0/MILC/l3296f211b630m0074m037m440d/l3296f211b630m0074m037m440d.{cfg}",checksum=True, reunitarize_sigma=1e-6)
     deviceSynchronize()
     core.getLogger().info(f"READ GAUGE #{cfg}: {perf_counter() - s} secs")
 
@@ -113,7 +100,6 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
     core.getLogger().info(f"DOING HYP SMEARING")
     core.getLogger().info(f"plaq_hyp_before = {gauge_hyp.plaquette()}")
     gauge_hyp.hypSmear(1, 0.75, 0.6, 0.3, -1,True,True)
-    gauge_ape.plaquette()
     deviceSynchronize()
     core.getLogger().info(f"plaq_hyp_after = {gauge_hyp.plaquette()}")
     core.getLogger().info(f"HYP SMEAR: {perf_counter() - s} secs")
@@ -192,31 +178,38 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         G5 @ G5,
                         )
 
-                    proton_45_p[i_cfg,t_idx,x_idx,y_idx,z_idx] += (contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgida,wtzyxlkfc->pt",
-                        eps_color,eps_color,charge @ G45, charge @ G45, parity_p,momentum_phases, prop2.data,prop2.data,prop2.data)
-                    -
-                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgkdc,wtzyxlifa->pt",
-                        eps_color,eps_color,charge @ G45, charge @ G45, parity_p,momentum_phases, prop2.data,prop2.data,prop2.data))
+                    for a, b, c in permutations(tuple(range(3))):
+                        for d, e, f in permutations(tuple(range(3))):
 
-                    proton_45_m[i_cfg,t_idx,x_idx,y_idx,z_idx] += (contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgida,wtzyxlkfc->pt",
-                        eps_color,eps_color,charge @ G45, charge @ G45, parity_m,momentum_phases, prop2.data,prop2.data,prop2.data)
-                    -
-                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgkdc,wtzyxlifa->pt",
-                        eps_color,eps_color,charge @ G45, charge @ G45, parity_m,momentum_phases, prop2.data,prop2.data,prop2.data))
+                            sign = 1 if b == (a + 1) % 3 else -1
+                            sign *= 1 if e == (d + 1) % 3 else -1
 
-                    proton_5_p[i_cfg,t_idx,x_idx,y_idx,z_idx] += (contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgida,wtzyxlkfc->pt",
-                        eps_color,eps_color,charge @ G5, charge @ G5, parity_p,momentum_phases, prop2.data,prop2.data,prop2.data)
-                    -
-                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgkdc,wtzyxlifa->pt",
-                        eps_color,eps_color,charge @ G5, charge @ G5, parity_p,momentum_phases, prop2.data,prop2.data,prop2.data))
+                            proton_45_p[i_cfg,t_idx,x_idx,y_idx,z_idx] += sign * (contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgi,wtzyxlk->pt",
+                                charge @ G45, charge @ G45, parity_p, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, a], prop2.data[..., f, c])
+                            -
+                            contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgk,wtzyxli->pt",
+                                charge @ G45, charge @ G45, parity_p, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, c], prop2.data[..., f, a]))
 
-                    proton_5_m[i_cfg,t_idx,x_idx,y_idx,z_idx] += (contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgida,wtzyxlkfc->pt",
-                        eps_color,eps_color,charge @ G5, charge @ G5, parity_m,momentum_phases, prop2.data,prop2.data,prop2.data)
-                    -
-                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgkdc,wtzyxlifa->pt",
-                        eps_color,eps_color,charge @ G5, charge @ G5, parity_m,momentum_phases, prop2.data,prop2.data,prop2.data))
+                            proton_45_m[i_cfg,t_idx,x_idx,y_idx,z_idx] += sign * (contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgi,wtzyxlk->pt",
+                                charge @ G45, charge @ G45, parity_m, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, a], prop2.data[..., f, c])
+                            -
+                            contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgk,wtzyxli->pt",
+                                charge @ G45, charge @ G45, parity_m, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, c], prop2.data[..., f, a]))
 
+                            proton_5_p[i_cfg,t_idx,x_idx,y_idx,z_idx] += sign * (contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgi,wtzyxlk->pt",
+                                charge @ G5, charge @ G5, parity_p, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, a], prop2.data[..., f, c])
+                            -
+                            contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgk,wtzyxli->pt",
+                                charge @ G5, charge @ G5, parity_p, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, c], prop2.data[..., f, a]))
 
+                            proton_5_m[i_cfg,t_idx,x_idx,y_idx,z_idx] += sign * (contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgi,wtzyxlk->pt",
+                                charge @ G5, charge @ G5, parity_m, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, a], prop2.data[..., f, c])
+                            -
+                            contract("gh,ij,kl,pwtzyx,wtzyxhj,wtzyxgk,wtzyxli->pt",
+                                charge @ G5, charge @ G5, parity_m, momentum_phases, prop2.data[..., e, b], prop2.data[..., d, c], prop2.data[..., f, a]))
+
+                    free, total = cp.cuda.runtime.memGetInfo()
+                    core.getLogger().info(f"GPU used {(total - free)/1e9:.1f} GB")
                     deviceSynchronize()
                     core.getLogger().info(f"CONTRACT: {perf_counter() - s} secs")
 
@@ -251,7 +244,6 @@ if latt_info.mpi_rank == 0:
     proton_45_np = np.concatenate([proton_45_p_np[..., :Lt // 2], -proton_45_m_np[..., Lt // 2:]], axis=-1)
     proton_5_np  = np.concatenate([proton_5_p_np[..., :Lt // 2],  -proton_5_m_np[..., Lt // 2:]],  axis=-1)
 
-    #mean_rsqr = mean_rsqr / count
     current_dir = os.path.dirname(os.path.abspath(__file__))
     g45_dir = f"{current_dir}/N{smear_steps}_rho{rho}_G45_ez_momfrac{smear_mom_x_str}"
     g5_dir = f"{current_dir}/N{smear_steps}_rho{rho}_G5_ez_momfrac{smear_mom_x_str}"
@@ -301,7 +293,6 @@ if latt_info.mpi_rank == 0:
         dset.attrs["t_src_list"] = t_src
         dset.attrs["dim_time"] = np.arange(proton_45_np.shape[-1])
         dset.attrs["diquark"] = "C gamma4 gamma5"
-        dset.attrs["parity_projector"] = "(1+gamma4)/2"
         dset.attrs["propagator"] = "prop2 (k2 = -k) for all three quark lines"
         dset.attrs["time_index"] = "tau = (t - t_src) mod 96: tau = 0 is the source, tau in [0,48) forward, tau in [48,96) backward (tau - 96 = -48..-1)"
         dset.attrs["parity_projector"] = "tau in [0,48): Tr[(1+gamma4)/2 C];  tau in [48,96): -Tr[(1-gamma4)/2 C]  (nucleon positive in both halves)"
@@ -318,7 +309,6 @@ if latt_info.mpi_rank == 0:
         dset.attrs["t_src_list"] = t_src
         dset.attrs["dim_time"] = np.arange(proton_5_np.shape[-1])
         dset.attrs["diquark"] = "C gamma5"
-        dset.attrs["parity_projector"] = "(1+gamma4)/2"
         dset.attrs["propagator"] = "prop2 (k2 = -k) for all three quark lines"
         dset.attrs["time_index"] = "tau = (t - t_src) mod 96: tau = 0 is the source, tau in [0,48) forward, tau in [48,96) backward (tau - 96 = -48..-1)"
         dset.attrs["parity_projector"] = "tau in [0,48): Tr[(1+gamma4)/2 C];  tau in [48,96): -Tr[(1-gamma4)/2 C]  (nucleon positive in both halves)"
