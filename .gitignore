@@ -1,2 +1,20 @@
-*.png
+# data
 *.h5
+*.npy
+*.npz
+
+# plots and fit outputs
+*.png
+*.pdf
+itd_plots/
+itd_plots_perjk/
+itd_plots_perjk_reproduce/
+ratio_plots/
+ratio_data/
+ratio_fit_plots_*/
+bare_matrix_element_*/
+
+# junk
+.DS_Store
+.ipynb_checkpoints/
+__pycache__/
