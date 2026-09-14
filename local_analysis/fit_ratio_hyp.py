@@ -47,16 +47,16 @@ pf_list = [(0, 0, pz) for pz in range(0, 7)]
 q_list = [(0, 0, 0)]
 
 w_fit_list = list(range(0, 10))
-tsep_fit_list = [ 5,6,7, 8, 9,10]
-tau_skip = 2
+tsep_fit_list = [ 6,7, 8, 9,10]
+tau_skip = 3
 w_plot_list = [0, 1,2,3, 4,5, 6, 8]
 
-DE_WIDTH_FACTOR = 2.0
+DE_WIDTH_FACTOR = 1.0
 A_PRIOR_WIDTH = 1e4
 M00_PRIOR_WIDTH = 1e4
-CROSS_W_FACTOR = 0.0   # 1.0 = full joint fit, 0.0 = block diagonal in w
+CROSS_W_FACTOR = 1.0   # 1.0 = full joint fit, 0.0 = block diagonal in w
                        # (exactly equivalent to fitting each w separately)
-SVDCUT = 1e-04
+SVDCUT = 1e-07
 MAXIT = 20000
 N_WORKERS = 7
 
