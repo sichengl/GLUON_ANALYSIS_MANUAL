@@ -168,8 +168,8 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     deviceSynchronize()
                     s = perf_counter()
                     core.getLogger().info(f"SOLVING DIRAC EQ")
-                    prop1 = core.invertPropagator(dirac, prop1)
-                    prop2 = core.invertPropagator(dirac, prop2)
+                    prop1 = core.invertPropagator(dirac, prop1,mrhs=12)
+                    prop2 = core.invertPropagator(dirac, prop2),mrhs=12
                     #deviceSynchronize()
                     core.getLogger().info(f"INVERT 2 propagagors: {perf_counter() - s} secs")
 
@@ -216,13 +216,14 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                                            eps_color, charge @ gamma_source, parity_m, momentum_phases, diquark, prop2.data))
 
                     free, total = cp.cuda.runtime.memGetInfo()
-                    core.getLogger().info(f"GPU used {(total - free)/1e9:.1f} GB")
+                    pool = cp.get_default_memory_pool()
+                    core.getLogger().info(f"GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB")
                     deviceSynchronize()
                     core.getLogger().info(f"CONTRACT ALL: {perf_counter() - s} secs")
-
-
+                    #del prop1, prop2, diquark, momentum_phases,gamma_source_bar
+                    #cp.get_default_memory_pool().free_all_blocks()
                     core.getLogger().info(f"UNTIL CONTRACTION: {perf_counter() - inner_loop} secs")
-
+    
     deviceSynchronize()
     saving_started = perf_counter()
     pion_gamma_np=core.gatherLattice(pion_gamma.get(),[7,-1,-1,-1])
@@ -275,29 +276,11 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             dset.attrs["diquark"] = "C Gamma_sink at the sink, C Gamma_source at the source (equal to Gamma_bar_source C for G5, G45, G35)"
             dset.attrs["propagator"] = "prop2 (k2 = -k) for all three quark lines"
     core.getLogger().info(f"SAVING SECTION:{perf_counter()-saving_started} secs")
+    #del gauge_ape, gauge_hyp
+    #cp.get_default_memory_pool().free_all_blocks()
+    free, total = cp.cuda.runtime.memGetInfo()
+    pool = cp.get_default_memory_pool()
+    core.getLogger().info(f"END CFG #{cfg}: GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB")
 dirac.freeGauge()
-
-
-
-
-
-
-"""
-To read do the following
-with h5py.File(pt2_path, "r") as f:
-    pion = f["pion_45"][:]
-
-    if "momentum_list" in f:
-        moms = f["momentum_list"][:]
-    else:
-        moms = f["pion_45"].attrs["momentums"]
-
-mom_to_idx = {tuple(p): i for i, p in enumerate(moms.tolist())}
-Then use like this
-pf = (0, 0, pz)
-ipf = mom_to_idx[pf]
-C2_pf = pion[..., ipf, :]
-"""
-
 
 

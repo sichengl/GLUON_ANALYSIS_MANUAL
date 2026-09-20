@@ -14,9 +14,11 @@ from mom_smearing import *
 parser = argparse.ArgumentParser()
 parser.add_argument("--quark",type=float, required=True)
 parser.add_argument("--rho",type=float,required=True)
+parser.add_argument("--icfg", type=int, default=0)      # starting position in cfg_list
 args = parser.parse_args()
 quark_mom_frac = args.quark
 rho = args.rho
+icfg0 = args.icfg
 Ls = 32
 Lt = 96
 n = 10  #number of configs to measure, starting from 204, with step size 6
@@ -31,9 +33,9 @@ k2 = -k
 
 
 cfg_list = np.arange(204, 204 + 800*6, 6)   # The complete cfg list, 800 configs
-cfg_measure_spacing = 5
-measurement_list = cfg_list[::cfg_measure_spacing][:n]
-ncfg     = (measurement_list - 204) // 6          # (n,)  sequence index 0..n-1
+cfg_measure_spacing = 5                     # 2 steps x overall stride 2
+measurement_list = cfg_list[icfg0::cfg_measure_spacing][:n]
+ncfg     = (measurement_list - 204) // 6
 
 # unshifted source grids
 t_base = np.arange(0, Lt, 32)   # 3
@@ -61,7 +63,7 @@ run_parameters = {
     "t_src_list_shifted": t_src,
 }
 
-core.init([1, 1, 1, 2], resource_path="/lustre2/gluonp0/sliu1/.cache/quda")
+core.init([1, 1, 1, 4], resource_path="/lustre2/gluonp0/sliu1/.cache/quda")
 latt_info = core.LatticeInfo([Ls, Ls, Ls, Lt], -1, 1.0)
 if latt_info.mpi_rank == 0:
     print(run_parameters)
@@ -90,14 +92,13 @@ os.makedirs(g45_dir, exist_ok=True)
 os.makedirs(g5_dir, exist_ok=True)
 
 pion_gamma     = cp.zeros((3,3,t_src.shape[1], x_src.shape[1], y_src.shape[1], z_src.shape[1], len(momentum_list), latt_info.Lt), "<c16")      #(sink_gamma, source_gamma,t,x,y,z,p,Lt)
-proton_gamma_p = cp.zeros((3,3,t_src.shape[1], x_src.shape[1], y_src.shape[1], z_src.shape[1], len(momentum_list), latt_info.Lt), "<c16")
-proton_gamma_m = cp.zeros((3,3,t_src.shape[1], x_src.shape[1], y_src.shape[1], z_src.shape[1], len(momentum_list), latt_info.Lt), "<c16")
+proton_gamma_dirac = cp.zeros((3,3,4,4,t_src.shape[1], x_src.shape[1], y_src.shape[1], z_src.shape[1], len(momentum_list), latt_info.Lt), "<c16")
+
 for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
 
     pion_gamma[:] = 0
-    proton_gamma_p[:] = 0
-    proton_gamma_m[:] = 0
+    proton_gamma_dirac[:] = 0
 
     #READ GAUGE
     deviceSynchronize()
@@ -166,8 +167,8 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     deviceSynchronize()
                     s = perf_counter()
                     core.getLogger().info(f"SOLVING DIRAC EQ")
-                    prop1 = core.invertPropagator(dirac, prop1)
-                    prop2 = core.invertPropagator(dirac, prop2)
+                    prop1 = core.invertPropagator(dirac, prop1,mrhs=12)
+                    prop2 = core.invertPropagator(dirac, prop2,mrhs=12)
                     #deviceSynchronize()
                     core.getLogger().info(f"INVERT 2 propagagors: {perf_counter() - s} secs")
 
@@ -185,49 +186,46 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     s = perf_counter()
 
                     for i_gamma_sink, gamma_sink in enumerate(gamma_list):
+
+                        diquark = contract("def,gh,wtzyxhjeb,wtzyxgida->wtzyxijabf",eps_color, charge @ gamma_sink, prop2.data, prop2.data)
+
+                        # pion: colors and sink gamma summed at each site, then sites summed with the phases
+                        #       source spins l,i left open for the source gamma
+                        pion_open = contract("pwtzyx,wtzyxjiba,jk,wtzyxklba->lipt",
+                                             momentum_phases, prop1.data.conj(), G5 @ gamma_sink, prop2.data)          # (4,4,81,96)
+
+                        # proton: colors and epsilon summed at each site (step 1), then sites summed with the phases (step 2)
+                        #         source spins i,j and sink spins l,k left open
+                        proton_site = contract("abc,wtzyxijabf,wtzyxlkfc->wtzyxijlk", eps_color, diquark, prop2.data)    # step 1, 256 per site
+                        proton_open = contract("pwtzyx,wtzyxijlk->ijlkpt", momentum_phases, proton_site)               # step 2, (4,4,4,4,81,96)
+                        proton_site = contract("abc,wtzyxkjcbf,wtzyxlifa->wtzyxijlk", eps_color, diquark, prop2.data)    # second term, step 1
+                        proton_open -= contract("pwtzyx,wtzyxijlk->ijlkpt", momentum_phases, proton_site)              # second term, step 2
+                        #del proton_site
+
                         for i_gamma_source, gamma_source in enumerate(gamma_list):
 
                                 gamma_source_bar = G4 @ gamma_source.conj().T @ G4
 
-                                #checked
                                 pion_gamma[i_gamma_sink,i_gamma_source,t_idx,x_idx,y_idx,z_idx] += contract(
-                                "pwtzyx,wtzyxjiba,jk,wtzyxklba,li->pt",
-                                momentum_phases,
-                                prop1.data.conj(),
-                                G5 @ gamma_sink,
-                                prop2.data,
-                                gamma_source_bar @ G5 ,
-                                )
+                                "li,lipt->pt", gamma_source_bar @ G5, pion_open)
 
-
-                                proton_gamma_p[i_gamma_sink,i_gamma_source,t_idx,x_idx,y_idx,z_idx] += (
-                                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgida,wtzyxlkfc->pt",
-                                    eps_color,eps_color,charge @ gamma_sink, charge @ gamma_source, parity_p,momentum_phases, prop2.data,prop2.data,prop2.data)
-                                -
-                                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgkdc,wtzyxlifa->pt",
-                                    eps_color,eps_color,charge @ gamma_sink, charge @ gamma_source, parity_p,momentum_phases, prop2.data,prop2.data,prop2.data))
-
-                                proton_gamma_m[i_gamma_sink,i_gamma_source,t_idx,x_idx,y_idx,z_idx] += (
-                                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgida,wtzyxlkfc->pt",
-                                    eps_color,eps_color,charge @ gamma_sink, charge @ gamma_source, parity_m,momentum_phases, prop2.data,prop2.data,prop2.data)
-                                -
-                                    contract("abc,def,gh,ij,kl,pwtzyx,wtzyxhjeb,wtzyxgkdc,wtzyxlifa->pt",
-                                    eps_color,eps_color,charge @ gamma_sink, charge @ gamma_source, parity_m,momentum_phases, prop2.data,prop2.data,prop2.data))
-
+                                proton_gamma_dirac[i_gamma_sink,i_gamma_source,:,:,t_idx,x_idx,y_idx,z_idx] += contract(
+                                "ij,ijlkpt->lkpt", charge @ gamma_source, proton_open)
 
                     free, total = cp.cuda.runtime.memGetInfo()
-                    core.getLogger().info(f"GPU used {(total - free)/1e9:.1f} GB")
+                    pool = cp.get_default_memory_pool()
+                    core.getLogger().info(f"GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB")
                     deviceSynchronize()
                     core.getLogger().info(f"CONTRACT ALL: {perf_counter() - s} secs")
-
-
+                    #del prop1, prop2, diquark, momentum_phases,gamma_source_bar
+                    #cp.get_default_memory_pool().free_all_blocks()
                     core.getLogger().info(f"UNTIL CONTRACTION: {perf_counter() - inner_loop} secs")
-
+    
     deviceSynchronize()
     saving_started = perf_counter()
     pion_gamma_np=core.gatherLattice(pion_gamma.get(),[7,-1,-1,-1])
-    proton_gamma_p_np = core.gatherLattice(proton_gamma_p.get(), [7, -1, -1, -1])
-    proton_gamma_m_np = core.gatherLattice(proton_gamma_m.get(), [7, -1, -1, -1])
+    proton_gamma_dirac_cpu = core.gatherLattice(proton_gamma_dirac.get(), [9, -1, -1, -1])
+    
 
 
     #save as h5py file
@@ -236,14 +234,11 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
     #ROLL every source so that time index 0 is t_src:  rolled[..., tau] = C[..., (t_src + tau) % 96]
         for t_idx, t0 in enumerate(t_src[i_cfg]):
             pion_gamma_np[:, :, t_idx]     = np.roll(pion_gamma_np[:, :, t_idx],     -t0, axis=-1)
-            proton_gamma_p_np[:, :, t_idx] = np.roll(proton_gamma_p_np[:, :, t_idx], -t0, axis=-1)
-            proton_gamma_m_np[:, :, t_idx] = np.roll(proton_gamma_m_np[:, :, t_idx], -t0, axis=-1)
-            proton_gamma_p_np[:, :, t_idx][..., Lt - t0:] *= -1
-            proton_gamma_m_np[:, :, t_idx][..., Lt - t0:] *= -1
-        proton_gamma_np = np.concatenate([proton_gamma_p_np[..., :Lt // 2], -proton_gamma_m_np[..., Lt // 2:]], axis=-1)
+            proton_gamma_dirac_cpu[:, :, :,:,t_idx] = np.roll(proton_gamma_dirac_cpu[:, :, :,:,t_idx], -t0, axis=-1)
+            proton_gamma_dirac_cpu[:, :,:,:, t_idx][..., Lt - t0:] *= -1
 
         pion_filename   = f"pion_N{smear_steps}_rho{rho}_frac{smear_mom_x_str}_GEVP_cfg{cfg}.h5"
-        proton_filename = f"proton_N{smear_steps}_rho{rho}_frac{smear_mom_x_str}_GEVP_cfg{cfg}.h5"
+        proton_filename = f"proton_N{smear_steps}_rho{rho}_frac{smear_mom_x_str}_GEVP_DIRAC_cfg{cfg}.h5"
         gevp_dir = f"{current_dir}/N{smear_steps}_rho{rho}_GEVP_ez_momfrac{smear_mom_x_str}"
         os.makedirs(gevp_dir, exist_ok=True)
 
@@ -261,43 +256,27 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             dset.attrs["dim_time"] = np.arange(pion_gamma_np.shape[-1])
 
         with h5py.File(f"{gevp_dir}/{proton_filename}", "w") as f:
-            dset = f.create_dataset("proton_gamma", data=proton_gamma_np)      # (3, 3, nt, nx, ny, nz, nmom, 96)
+            dset = f.create_dataset("proton_gamma", data=proton_gamma_dirac_cpu)      # (3, 3, nt, nx, ny, nz, nmom, 96)
             f.create_dataset("momentum_list", data=momentum_list)
             dset.attrs["gamma_list"] = np.array(["G5", "G45", "G35"], dtype=h5py.string_dtype())
-            dset.attrs["dim_spec"] = np.array(["gamma_sink","gamma_source","t_src_list","x_src_list","y_src_list","z_src_list","momentum_list", "time"], dtype=h5py.string_dtype())
+            dset.attrs["dim_spec"] = np.array(["gamma_sink","gamma_source","dirac_sink","dirac_source","t_src_list","x_src_list","y_src_list","z_src_list","momentum_list", "time"], dtype=h5py.string_dtype())
             dset.attrs["measurements"] = [cfg]
             dset.attrs["momentums"] = momentum_list
             dset.attrs["x_src_list"] = x_src[i_cfg]
             dset.attrs["y_src_list"] = y_src[i_cfg]
             dset.attrs["z_src_list"] = z_src[i_cfg]
             dset.attrs["t_src_list"] = t_src[i_cfg]
-            dset.attrs["dim_time"] = np.arange(proton_gamma_np.shape[-1])
+            dset.attrs["dim_time"] = np.arange(proton_gamma_dirac_cpu.shape[-1])
             dset.attrs["diquark"] = "C Gamma_sink at the sink, C Gamma_source at the source (equal to Gamma_bar_source C for G5, G45, G35)"
             dset.attrs["propagator"] = "prop2 (k2 = -k) for all three quark lines"
+            f.create_dataset("parity_p", data=cp.asnumpy(parity_p))      # (1+g4)/2, forward half
+            f.create_dataset("parity_m", data=cp.asnumpy(parity_m))      # (1-g4)/2, backward half, enters with a minus sign
     core.getLogger().info(f"SAVING SECTION:{perf_counter()-saving_started} secs")
+    #del gauge_ape, gauge_hyp
+    #cp.get_default_memory_pool().free_all_blocks()
+    free, total = cp.cuda.runtime.memGetInfo()
+    pool = cp.get_default_memory_pool()
+    core.getLogger().info(f"END CFG #{cfg}: GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB")
 dirac.freeGauge()
-
-
-
-
-
-
-"""
-To read do the following
-with h5py.File(pt2_path, "r") as f:
-    pion = f["pion_45"][:]
-
-    if "momentum_list" in f:
-        moms = f["momentum_list"][:]
-    else:
-        moms = f["pion_45"].attrs["momentums"]
-
-mom_to_idx = {tuple(p): i for i, p in enumerate(moms.tolist())}
-Then use like this
-pf = (0, 0, pz)
-ipf = mom_to_idx[pf]
-C2_pf = pion[..., ipf, :]
-"""
-
 
 
