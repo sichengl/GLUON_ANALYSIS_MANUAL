@@ -7,15 +7,15 @@
 #SBATCH -n 4
 #SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=16
-#SBATCH -J pt2_coulomb_test
-#SBATCH -o ./logs/pt2_coulomb_boosted_fermilab_test_%j.out
-#SBATCH -e ./logs/pt2_coulomb_boosted_fermilab_test_%j.err
+#SBATCH -J pt2_coulomb_qsrc_test
+#SBATCH -o ./logs/pt2_coulomb_qsrc_fermilab_test_%j.out
+#SBATCH -e ./logs/pt2_coulomb_qsrc_fermilab_test_%j.err
 
 # one-configuration test of the Coulomb-gauge boosted smearing run on a normal lq2 node, 4 GPUs, grid [1,1,1,4] in the python script
 # runs one full configuration (about 37 min) including the save: check SAVING SECTION in the log and the two h5 files
 cd $SLURM_SUBMIT_DIR
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_test_64srcs_fermilab.py
+SCRIPT=2pt_coulomb_boosted_qsrc_64srcs_fermilab.py
 
 # fail fast if a module the script imports is missing from the submit directory
 for f in "$SCRIPT" coulomb_smearing.py; do
@@ -44,7 +44,7 @@ export QUDA_ENABLE_DEVICE_MEMORY_POOL=0
 mkdir -p $QUDA_RESOURCE_PATH
 
 # run parameters: first configuration of the block
-ICFG=${ICFG:-0}
+ICFG=${ICFG:-5}                     # cfg 234: its q phases are not all 1, unlike cfg 204, so the phase is testable
 export PYTHONPATH=$SLURM_SUBMIT_DIR:$PYTHONPATH
 nvidia-smi -L
 # this OpenMPI has no Slurm PMI support: launch with mpirun, not srun
