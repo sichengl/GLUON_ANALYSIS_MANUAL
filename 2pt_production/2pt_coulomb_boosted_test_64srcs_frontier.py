@@ -143,18 +143,18 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
                     src_pos = [x0, y0, z0, t0]
                     core.getLogger().info(f"SOURCE POSITION = {src_pos}")
-                    momentum_phases = phase.MomentumPhase(latt_info).getPhases( momentum_list, src_pos )
+                    momentum_phases = phase.MomentumPhase(latt_info).getPhases( momentum_list, src_pos ).conj()   # exp(-2 pi i p.(x - x_src)/L): label p = physical momentum p
 
                     for i_src_shape, i_src_frac in smear_types:
                         rho_T_src, rho_z_src = shape_list[i_src_shape]
                         k_src = k_list[i_src_frac]
 
-                        #SRC: boosted Gaussian in Coulomb gauge, +k for prop1 and -k for prop2 as in the Wuppertal version
+                        #SRC: boosted Gaussian in Coulomb gauge, -k for prop1 and +k for prop2: the quarks are boosted toward physical +z (with the conjugated sink phase above)
                         deviceSynchronize()
                         s = perf_counter()
                         core.getLogger().info(f"SRC SMEARING: {shape_names[i_src_shape]} rho_T {rho_T_src} rho_z {rho_z_src}, frac {mom_frac_list[i_src_frac]}")
-                        prop1_inv = coulomb_boosted_source(latt_info, +k_src, src_pos, rho_T_src, rho_z_src)
-                        prop2_inv = coulomb_boosted_source(latt_info, -k_src, src_pos, rho_T_src, rho_z_src)
+                        prop1_inv = coulomb_boosted_source(latt_info, -k_src, src_pos, rho_T_src, rho_z_src)
+                        prop2_inv = coulomb_boosted_source(latt_info, +k_src, src_pos, rho_T_src, rho_z_src)
                         deviceSynchronize()
                         core.getLogger().info(f"SOURCE SMEAR: {perf_counter() - s} secs")
 
@@ -174,8 +174,8 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                             deviceSynchronize()
                             s = perf_counter()
                             core.getLogger().info(f"SINK SMEARING: {shape_names[i_sink_shape]} rho_T {rho_T_sink} rho_z {rho_z_sink}, frac {mom_frac_list[i_sink_frac]}")
-                            prop1 = coulomb_boosted_sink(latt_info, prop1_inv, +k_sink, rho_T_sink, rho_z_sink)
-                            prop2 = coulomb_boosted_sink(latt_info, prop2_inv, -k_sink, rho_T_sink, rho_z_sink)
+                            prop1 = coulomb_boosted_sink(latt_info, prop1_inv, -k_sink, rho_T_sink, rho_z_sink)
+                            prop2 = coulomb_boosted_sink(latt_info, prop2_inv, +k_sink, rho_T_sink, rho_z_sink)
                             deviceSynchronize()
                             core.getLogger().info(f"SINK SMEAR: {perf_counter() - s} secs")
 
@@ -232,14 +232,15 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             proton_gamma_dirac_cpu[:, :, :, :, :, :, :, :, t_idx] = np.roll(proton_gamma_dirac_cpu[:, :, :, :, :, :, :, :, t_idx], -t0, axis=-1)
             proton_gamma_dirac_cpu[:, :, :, :, :, :, :, :, t_idx][..., Lt - t0:] *= -1
 
-        pion_filename   = f"pion_{smear_tag}_GEVP_cfg{cfg}.h5"
-        proton_filename = f"proton_{smear_tag}_GEVP_DIRAC_cfg{cfg}.h5"
-        gevp_dir = f"{current_dir}/{smear_tag}_GEVP_ez"
+        pion_filename   = f"pion_{smear_tag}_GEVP_physp_cfg{cfg}.h5"               # physp: label p = physical momentum p
+        proton_filename = f"proton_{smear_tag}_GEVP_DIRAC_physp_cfg{cfg}.h5"
+        gevp_dir = f"{current_dir}/{smear_tag}_GEVP_physp_ez"
         os.makedirs(gevp_dir, exist_ok=True)
         smearing_note = ("boosted Gaussian in Coulomb gauge, no gauge links: K(d) = exp(-(dx^2+dy^2)/rho_T^2 - dz^2/rho_z^2) exp(+i 2pi/L k.d), d = x - y, "
                          "Gaussian part normalized to sum 1; the same K at source and sink; rho_z = rho_T equals the width of N40 rho3.25 Wuppertal smearing")
         gauge_fix_note = "Coulomb gauge fixing of the unsmeared links by overrelaxation, fixingOVR(gauge_dir=3, Nsteps=20000, verbose_interval=500, relax_boost=1.7, tolerance=1e-12, reunit_interval=10, stopWtheta=1), before HYP"
-        momentum_note = "sink phase exp(+2 pi i p.(x - x_src)/L), PyQUDA MomentumPhase: momentum_list label p is physical momentum -p; the quark boost favors label +pz, physical -pz"
+        momentum_note = ("sink phase exp(-2 pi i p.(x - x_src)/L) (conjugate of PyQUDA MomentumPhase): momentum_list label p is the "
+                         "physical momentum p; the quarks are boosted toward physical +z, so labels +pz have the best overlap")
 
         with h5py.File(f"{gevp_dir}/{pion_filename}", "w") as f:
             dset = f.create_dataset("pion_gamma", data=pion_gamma_np)          # (nshape, nshape, nfrac, nfrac, 2, 2, nt, nx, ny, nz, nmom, 96)
@@ -256,7 +257,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             dset.attrs["gauge_fixing"] = gauge_fix_note
             dset.attrs["momentum_convention"] = momentum_note
             dset.attrs["gauge_file"] = gauge_file
-            dset.attrs["propagator"] = "prop1 boosted by +k and prop2 by -k, at source and sink"
+            dset.attrs["propagator"] = "prop1 smeared with boost -k and prop2 with +k, at source and sink (quarks boosted toward physical +z)"
             dset.attrs["time_reflection"] = "C_ab(Lt - t) = s_a s_b C_ab(t) with s = +1 for G5 and -1 for G45 (a = gamma_sink, b = gamma_source): the G5-G45 elements are odd, include the sign when averaging forward and backward"
             dset.attrs["measurements"] = [cfg]
             dset.attrs["momentums"] = momentum_list
@@ -289,7 +290,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             dset.attrs["t_src_list"] = t_src[i_cfg]
             dset.attrs["dim_time"] = np.arange(proton_gamma_dirac_cpu.shape[-1])
             dset.attrs["diquark"] = "C Gamma_sink at the sink, C Gamma_source at the source (equal to -Gamma_bar_source C for G5 and G45, an overall sign)"
-            dset.attrs["propagator"] = "prop2 (boost -k) for all three quark lines; source smearing = (shape_source, frac_source), sink smearing = (shape_sink, frac_sink)"
+            dset.attrs["propagator"] = "prop2 (boost +k) for all three quark lines; source smearing = (shape_source, frac_source), sink smearing = (shape_sink, frac_sink)"
             dset.attrs["how_to_project"] = "NOT projected. C(t) = sum_kl parity_p[k,l] M[l,k] for t<Lt/2 and -sum_kl parity_m[k,l] M[l,k] for t>=Lt/2, M = this dataset, l = dirac_sink, k = dirac_source. Antiperiodic sign already applied. Time reflection: the projected backward correlator at Lt - t equals s_a s_b times the forward one at t, s = +1 for G5 and -1 for G45 (a = gamma_sink, b = gamma_source); include this sign when averaging forward and backward."
             f.create_dataset("parity_p", data=cp.asnumpy(parity_p))      # (1+g4)/2, forward half
             f.create_dataset("parity_m", data=cp.asnumpy(parity_m))      # (1-g4)/2, backward half, enters with a minus sign
