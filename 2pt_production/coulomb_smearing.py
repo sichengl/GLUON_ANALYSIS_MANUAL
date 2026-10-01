@@ -13,6 +13,7 @@ k is in units of 2pi/L, with the same meaning as in mom_smearing.py:
 Both were verified on FNAL and on Frontier (2026-09-23): the isotropic source overlaps the free-field N40 rho3.25
 mom_smearing source at 0.9999 for the same k, and at 0.0761 (k = 3.6) and 0.5212 (k = 1.8) for the opposite k.
 coulomb_gauge_theta() measures how well the configuration satisfies the Coulomb condition the smearing relies on.
+mean_radius() measures the rms radius of a propagator (or a smeared source) around its source position.
 The Gaussian part is normalized to sum 1, as the Wuppertal smearing is at k = 0.
 
 The sink smearing is a 3D FFT on every time slice, so the spatial directions must not be split
@@ -119,6 +120,30 @@ def sink_smear_evenodd(data_evenodd, spatial_size, kvec, rho_T, rho_z):
     return to_evenodd(smeared)
 
 
+def squared_distance(xp, spatial_size, src_pos):
+    """|d|^2[z, y, x] for d = x - x_src, spatial only, each component taken to the nearest periodic image."""
+    Lx, Ly, Lz = spatial_size
+    d2 = xp.zeros((Lz, Ly, Lx))
+    for L, x0, shape in ((Lx, src_pos[0], (1, 1, Lx)), (Ly, src_pos[1], (1, Ly, 1)), (Lz, src_pos[2], (Lz, 1, 1))):
+        d = (xp.arange(L) - x0 + L // 2) % L - L // 2
+        d2 = d2 + (d**2).reshape(shape)
+    return d2
+
+
+def radius_moments_evenodd(data_evenodd, spatial_size, src_pos):
+    """
+    Sums over the local sites of |S|^2 and |d|^2 |S|^2 for every diagonal Dirac-color component S[x, a, a, c, c],
+    returned as two [spin, color] arrays. d = x - x_src is spatial only and all local time slices are summed.
+    """
+    xp = array_module(data_evenodd)
+    diag = data_evenodd.diagonal(axis1=-4, axis2=-3).diagonal(axis1=-3, axis2=-2)  # [..., spin, spin, color, color] -> [..., spin, color]
+    weight = to_lexico(abs(diag) ** 2)  # [t, z, y, x, spin, color], 12 reals per site instead of the whole propagator
+    d2 = squared_distance(xp, spatial_size, src_pos)
+    norm = weight.sum(axis=(0, 1, 2, 3))
+    moment = (weight * d2[None, :, :, :, None, None]).sum(axis=(0, 1, 2, 3))
+    return norm, moment
+
+
 # ---------------- PyQUDA wrappers used by the production script ----------------
 
 
@@ -140,6 +165,24 @@ def coulomb_boosted_sink(latt_info, propagator, kvec, rho_T, rho_z):
 
     _check_grid(latt_info)
     return LatticePropagator(latt_info, sink_smear_evenodd(propagator.data, latt_info.size[:3], kvec, rho_T, rho_z))
+
+
+def mean_radius(latt_info, propagator, src_pos):
+    """
+    Root-mean-square radius of a propagator around its source, averaged over the 12 diagonal Dirac-color components:
+        r_ac = sqrt( sum_x |x - x_src|^2 |S_aacc(x)|^2 / sum_x |S_aacc(x)|^2 ),    mean radius = mean over a, c of r_ac
+    src_pos = [x0, y0, z0, t0] as for coulomb_boosted_source; the distance is spatial only (nearest periodic image) and
+    every time slice is summed, so for a source this is its radius on the source slice. The plane-wave boost drops out of
+    |S|^2: the boosted Gaussian source has r = rho sqrt(3) / 2 at rho_T = rho_z = rho, sqrt((2 rho_T^2 + rho_z^2) / 4) in general.
+    Every rank must call it: the sums over time slices are an allreduce.
+    """
+    _check_grid(latt_info)
+    norm, moment = radius_moments_evenodd(propagator.data, latt_info.size[:3], src_pos)
+    if cupy is not None:
+        norm, moment = cupy.asnumpy(norm), cupy.asnumpy(moment)
+    norm = latt_info.mpi_comm.allreduce(norm)
+    moment = latt_info.mpi_comm.allreduce(moment)
+    return float(numpy.sqrt(moment / norm).mean())
 
 
 def coulomb_gauge_theta(latt_info, gauge):
