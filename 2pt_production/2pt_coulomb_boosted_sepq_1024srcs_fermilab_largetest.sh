@@ -18,7 +18,7 @@ cd $SLURM_SUBMIT_DIR
 mkdir -p logs
 SCRIPT=2pt_coulomb_boosted_sepq_1024srcs_fermilab_largetest.py
 SETUP=sepq_2pt_setup.py
-SUBMIT=submit_2pt_sepq_fermilab_test.sh            # name of this file, used for its copy in the run folder
+SUBMIT=2pt_coulomb_boosted_sepq_1024srcs_fermilab_largetest.sh            # name of this file, used for its copy in the run folder
 
 # fail fast if a file the script imports is missing from the submit directory
 for f in "$SCRIPT" "$SETUP" coulomb_smearing.py; do

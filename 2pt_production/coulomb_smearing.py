@@ -130,18 +130,16 @@ def squared_distance(xp, spatial_size, src_pos):
     return d2
 
 
-def radius_moments_evenodd(data_evenodd, spatial_size, src_pos):
+def radius_moments_lexico(slice_lexico, src_pos):
     """
-    Sums over the local sites of |S|^2 and |d|^2 |S|^2 for every diagonal Dirac-color component S[x, a, a, c, c],
-    returned as two [spin, color] arrays. d = x - x_src is spatial only and all local time slices are summed.
+    Sum of |S|^2 and sum of |d|^2 |S|^2 over the sites of one time slice S[z, y, x, spin, spin, color, color] and over
+    every Dirac-color entry, returned as two numbers. d = x - x_src is spatial only.
     """
-    xp = array_module(data_evenodd)
-    diag = data_evenodd.diagonal(axis1=-4, axis2=-3).diagonal(axis1=-3, axis2=-2)  # [..., spin, spin, color, color] -> [..., spin, color]
-    weight = to_lexico(abs(diag) ** 2)  # [t, z, y, x, spin, color], 12 reals per site instead of the whole propagator
-    d2 = squared_distance(xp, spatial_size, src_pos)
-    norm = weight.sum(axis=(0, 1, 2, 3))
-    moment = (weight * d2[None, :, :, :, None, None]).sum(axis=(0, 1, 2, 3))
-    return norm, moment
+    xp = array_module(slice_lexico)
+    Lz, Ly, Lx = slice_lexico.shape[:3]
+    weight = (abs(slice_lexico) ** 2).sum(axis=(3, 4, 5, 6))  # [z, y, x]: |S|^2 summed over every Dirac-color entry
+    d2 = squared_distance(xp, [Lx, Ly, Lz], src_pos)
+    return float(weight.sum()), float((d2 * weight).sum())
 
 
 # ---------------- PyQUDA wrappers used by the production script ----------------
@@ -169,20 +167,29 @@ def coulomb_boosted_sink(latt_info, propagator, kvec, rho_T, rho_z):
 
 def mean_radius(latt_info, propagator, src_pos):
     """
-    Root-mean-square radius of a propagator around its source, averaged over the 12 diagonal Dirac-color components:
-        r_ac = sqrt( sum_x |x - x_src|^2 |S_aacc(x)|^2 / sum_x |S_aacc(x)|^2 ),    mean radius = mean over a, c of r_ac
-    src_pos = [x0, y0, z0, t0] as for coulomb_boosted_source; the distance is spatial only (nearest periodic image) and
-    every time slice is summed, so for a source this is its radius on the source slice. The plane-wave boost drops out of
-    |S|^2: the boosted Gaussian source has r = rho sqrt(3) / 2 at rho_T = rho_z = rho, sqrt((2 rho_T^2 + rho_z^2) / 4) in general.
-    Every rank must call it: the sums over time slices are an allreduce.
+    Root-mean-square radius of a propagator around its source on the source time slice t0, with every Dirac-color entry
+    pooled into one sum before the division:
+        r^2 = sum_abcd sum_x |x - x_src|^2 |S_abcd(x)|^2 / sum_abcd sum_x |S_abcd(x)|^2,    x on the slice t = t0
+    Entries that vanish (the off-diagonal Dirac entries of a smeared source) add nothing to either sum. Summing over both
+    color indices makes r exactly gauge invariant, since only Tr S^dag S enters, so a gauge-covariant (Wuppertal) source
+    gives the same r in any gauge.
+    src_pos = [x0, y0, z0, t0] as for coulomb_boosted_source; the distance is spatial only (nearest periodic image). The
+    plane-wave boost drops out of |S|^2: the boosted Gaussian source has r = rho sqrt(3) / 2 at rho_T = rho_z = rho,
+    sqrt((2 rho_T^2 + rho_z^2) / 4) in general. For a solved propagator this is its radius on the slice t0 only.
+    A smeared source lives on the slice t0 alone, so only the GPU that holds t0 computes, on that slice in lexicographic
+    order. The one number is then shared so that every rank, including rank 0 that prints the log, returns it: every rank
+    must call this function.
     """
     _check_grid(latt_info)
-    norm, moment = radius_moments_evenodd(propagator.data, latt_info.size[:3], src_pos)
-    if cupy is not None:
-        norm, moment = cupy.asnumpy(norm), cupy.asnumpy(moment)
-    norm = latt_info.mpi_comm.allreduce(norm)
-    moment = latt_info.mpi_comm.allreduce(moment)
-    return float(numpy.sqrt(moment / norm).mean())
+    t_local = src_pos[3] - latt_info.gt * latt_info.Lt
+    r = 0.0
+    if 0 <= t_local < latt_info.Lt:
+        slice_evenodd = propagator.data[:, t_local : t_local + 1]
+        if t_local % 2 == 1:
+            slice_evenodd = slice_evenodd[::-1]  # to_lexico takes this one slice as t = 0, so an odd slice has its parities swapped
+        norm, moment = radius_moments_lexico(to_lexico(slice_evenodd)[0], src_pos)
+        r = (moment / norm) ** 0.5
+    return latt_info.mpi_comm.allreduce(r)  # r on the GPU that holds t0, 0 on the others
 
 
 def coulomb_gauge_theta(latt_info, gauge):
