@@ -6,6 +6,7 @@
 # plots and fit outputs
 *.png
 *.pdf
+*.svg
 itd_plots/
 itd_plots_perjk/
 itd_plots_perjk_reproduce/
