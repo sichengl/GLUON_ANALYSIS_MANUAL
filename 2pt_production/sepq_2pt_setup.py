@@ -10,19 +10,19 @@ src_phase_sign = -1
 mom_min = 0
 mom_max = 6
 rho_T = 3.25
-shape_list = [[rho_T, rho_T], [rho_T, rho_T / 2]]
-shape_names = ["iso", "aniso"]
+shape_list = [[rho_T, rho_T], [rho_T, rho_T / 2],[rho_T, rho_T / 3]]
+shape_names = ["iso", "aniso2", "aniso3"]      # rho_z = rho_T, rho_T/2, rho_T/3
 mom_frac_list = [0.6,0.3]
 k_list = [np.array([0, 0, frac * mom_max]) for frac in mom_frac_list]
 smear_list = [[(i_shape,shape),(i_frac,frac)] for i_shape, shape in enumerate(shape_list) for i_frac, frac in enumerate(mom_frac_list)]
 frac_str = [("%.3f" % frac).rstrip("0").rstrip(".").replace(".", "p") for frac in mom_frac_list]
 smear_tag = f"coulomb_rhoT{rho_T}_{'-'.join(shape_names)}_frac{'-'.join(frac_str)}"
-gamma_ids   = [15, 7, 11]
-gamma_names = ["G5", "G45","G35"]
+gamma_ids   = [15, 7]
+gamma_names = ["G5", "G45"]
 
 
 #======== list definitions ========
-=q_forward_list    = [[ 0, 0, 0]]
+q_forward_list    = [[ 0, 0, 0]]
 q_sym_0xi_list     = [[ 2, 0, 0],[-2, 0, 0],[ 0, 2, 0],[ 0,-2, 0],[ 2, 2, 0],[ 2,-2, 0],[-2, 2, 0],[-2,-2, 0]]
 q_sym_non0xi_list  = [[ 0, 0, 2],[ 2, 0, 2],[-2, 0, 2],[ 0, 2, 2],[ 0,-2, 2],[ 2, 2, 2],[ 2,-2, 2],[-2, 2, 2],[-2,-2, 2],
                      [ 0, 0,-2],[ 2, 0,-2],[-2, 0,-2],[ 0, 2,-2],[ 0,-2,-2],[ 2, 2,-2],[ 2,-2,-2],[-2, 2,-2],[-2,-2,-2]]
@@ -33,7 +33,7 @@ q_asy_non0xi_list  = [[ 0, 0, 1],[ 1, 0, 1],[-1, 0, 1],[ 0, 1, 1],[ 0,-1, 1],[ 1
                      [ 0, 0,-2],[ 1, 0,-2],[-1, 0,-2],[ 0, 1,-2],[ 0,-1,-2],[ 1, 1,-2],[ 1,-1,-2],[-1, 1,-2],[-1,-1,-2]]
 q_plain_list       = [[ 0, 0, 0]]
 
-pz_list = list(range(mom_min, mom_max + 1))
+pz_list = list(range(mom_min, mom_max + 1)) 
 P_list = np.array([[0, 0, pz] for pz in pz_list])
 pf_forward_table    = P_list + np.array(q_forward_list)[:, None]
 pf_sym_0xi_table    = P_list + np.array(q_sym_0xi_list)[:, None] // 2

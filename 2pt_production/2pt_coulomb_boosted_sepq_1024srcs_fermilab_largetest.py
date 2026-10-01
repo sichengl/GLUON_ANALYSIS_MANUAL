@@ -69,9 +69,8 @@ momentum_note = ("sink phase exp(-2 pi i p.(x - x_src)/L) (conjugate of PyQUDA M
                  "momentum p_f of every entry; the quarks are boosted toward physical +z, so +pz has the best overlap")
 source_note = (f"spatial sources contracted: for every t_src, mean over the {n_spatial_src} positions x_src_list x y_src_list x z_src_list, weighted by "
                "exp(-i 2pi/Ls q.x_src) with q from the q_list dataset. This phase is ALREADY APPLIED: do not apply it again in the 3pt build")
-time_reflection_note = ("C_ab(Lt - t) = s_a s_b C_ab(t) with s = +1 for G5, -1 for G45, +1 for G35 (a = gamma_sink, b = gamma_source): "
-                        "the G5-G45 and G45-G35 elements are odd, include the sign when averaging forward and backward")
-
+time_reflection_note = ("C_ab(Lt - t) = s_a s_b C_ab(t) with s = +1 for G5, -1 for G45 (a = gamma_sink, b = gamma_source): "
+                        "the G5-G45 elements are odd, include the sign when averaging forward and backward")
 
 for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
@@ -296,7 +295,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     else:
                         f.create_dataset("parity_p", data=cp.asnumpy(parity_p))      # (1+g4)/2, forward half
                         f.create_dataset("parity_m", data=cp.asnumpy(parity_m))      # (1-g4)/2, backward half, enters with a minus sign
-                        dset.attrs["diquark"] = "C Gamma_sink at the sink, C Gamma_source at the source (equal to -Gamma_bar_source C for G5, G45 and G35, an overall sign)"
+                        dset.attrs["diquark"] = "C Gamma_sink at the sink, C Gamma_source at the source (equal to -Gamma_bar_source C for G5 and G45, an overall sign)"
                         dset.attrs["how_to_project"] = ("NOT projected. C(t) = sum_kl parity_p[k,l] M[l,k] for t<Lt/2 and -sum_kl parity_m[k,l] M[l,k] for t>=Lt/2, "
                                                         "M = this dataset, l = dirac_sink, k = dirac_source. Antiperiodic sign already applied. " + time_reflection_note)
                         dset.attrs["propagator"] = "prop2 (boost +k) for all three quark lines; source smearing = (shape_source, frac_source), sink smearing = (shape_sink, frac_sink)"
