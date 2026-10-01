@@ -104,7 +104,7 @@ def source_lexico(xp, local_size, t_offset, kvec, src_pos, rho_T, rho_z):
         eta = xp.roll(kernel, shift=(z0, y0, x0), axis=(0, 1, 2))  # eta(x) = K(x - x_src)
         spin_identity = xp.eye(Ns).reshape(Ns, Ns, 1, 1)
         color_identity = xp.eye(Nc).reshape(1, 1, Nc, Nc)
-        data[t_local] = eta.reshape(Lz, Ly, Lx, 1, 1, 1, 1) * spin_identity * color_identity
+        data[t_local] = eta.reshape(Lz, Ly, Lx, 1, 1, 1, 1) * spin_identity * color_identity #source is only nonzero in the diagonal dirac-color space
     return data
 
 
@@ -113,7 +113,7 @@ def sink_smear_evenodd(data_evenodd, spatial_size, kvec, rho_T, rho_z):
     xp = array_module(data_evenodd)
     kernel_ft = xp.fft.fftn(boosted_gaussian_kernel(xp, spatial_size, kvec, rho_T, rho_z))
     prop_ft = xp.fft.fftn(to_lexico(data_evenodd), axes=(1, 2, 3))
-    prop_ft *= kernel_ft.reshape(1, *kernel_ft.shape, *([1] * (prop_ft.ndim - 4)))
+    prop_ft *= kernel_ft[None, :, :, :, None, None, None, None]
     smeared = xp.fft.ifftn(prop_ft, axes=(1, 2, 3))
     del prop_ft
     return to_evenodd(smeared)

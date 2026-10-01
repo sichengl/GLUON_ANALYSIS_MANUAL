@@ -73,7 +73,9 @@ run_parameters = {
     "t_src_list_shifted": t_src,
     "q_list": q_list,
 }
-
+transfer_note = ("P_f = P_i + q (physical momenta, equal to the labels): source weight exp(-i 2pi/Ls q.x_src), gluon operator "
+                    "Fourier transformed with exp(+i 2pi/Ls q.z) (FF q_phase_sign = +1). The initial-state 2pt of a 3pt at sink "
+                    "label pf and transfer q is at label pf - q.")
 core.init([1, 1, 1, 4], resource_path="/lustre2/gluonp0/sliu1/.cache/quda")
 latt_info = core.LatticeInfo([Ls, Ls, Ls, Lt], -1, 1.0)
 if latt_info.mpi_rank == 0:
@@ -152,7 +154,8 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
                     src_pos = [x0, y0, z0, t0]
                     core.getLogger().info(f"SOURCE POSITION = {src_pos}")
-                    momentum_phases = phase.MomentumPhase(latt_info).getPhases( momentum_list, src_pos ).conj()   # exp(-2 pi i p.(x - x_src)/L): label p = physical momentum p
+                    #phase is conjugated here to match the physical momentum convention. The phase for sink coordinate should have negative sign
+                    momentum_phases = phase.MomentumPhase(latt_info).getPhases( momentum_list, src_pos ).conj()
                     # weight of this spatial source in each q average: exp(-i 2pi/Ls q.x_src) / 8, one number per q, shape (n_q,)
                     src_phase = cp.asarray(np.exp(src_phase_sign * 1j * 2 * np.pi / Ls * (q_list @ np.array([x0, y0, z0]))) / n_spatial_src)
 
@@ -160,7 +163,9 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         rho_T_src, rho_z_src = shape_list[i_src_shape]
                         k_src = k_list[i_src_frac]
 
-                        #SRC: boosted Gaussian in Coulomb gauge, -k for prop1 and +k for prop2: the quarks are boosted toward physical +z (with the conjugated sink phase above)
+                        #SRC: boosted Gaussian in Coulomb gauge, -k for prop1 and +k for prop2
+                        #prop1 is conjugated, and will be used for anti-quark
+                        #prop2 is not conjugated, and will be used for quark
                         deviceSynchronize()
                         s = perf_counter()
                         core.getLogger().info(f"SRC SMEARING: {shape_names[i_src_shape]} rho_T {rho_T_src} rho_z {rho_z_src}, frac {mom_frac_list[i_src_frac]}")
@@ -243,9 +248,9 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             proton_gamma_dirac_cpu[:, :, :, :, :, :, :, :, t_idx] = np.roll(proton_gamma_dirac_cpu[:, :, :, :, :, :, :, :, t_idx], -t0, axis=-1)
             proton_gamma_dirac_cpu[:, :, :, :, :, :, :, :, t_idx][..., Lt - t0:] *= -1
 
-        pion_filename   = f"pion_{smear_tag}_GEVP_qsrc_physp_cfg{cfg}.h5"          # physp: label p = physical momentum p
-        proton_filename = f"proton_{smear_tag}_GEVP_DIRAC_qsrc_physp_cfg{cfg}.h5"
-        gevp_dir = f"{current_dir}/{smear_tag}_GEVP_qsrc_physp_ez"
+        pion_filename   = f"pion_{smear_tag}_GEVP_qsrc_phyp_cfg{cfg}.h5"
+        proton_filename = f"proton_{smear_tag}_GEVP_DIRAC_qsrc_phyp_cfg{cfg}.h5"
+        gevp_dir = f"{current_dir}/{smear_tag}_GEVP_qsrc_phyp_ez"
         os.makedirs(gevp_dir, exist_ok=True)
         smearing_note = ("boosted Gaussian in Coulomb gauge, no gauge links: K(d) = exp(-(dx^2+dy^2)/rho_T^2 - dz^2/rho_z^2) exp(+i 2pi/L k.d), d = x - y, "
                          "Gaussian part normalized to sum 1; the same K at source and sink; rho_z = rho_T equals the width of N40 rho3.25 Wuppertal smearing")
@@ -273,7 +278,6 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             dset.attrs["gauge_fixing"] = gauge_fix_note
             dset.attrs["momentum_convention"] = momentum_note
             dset.attrs["gauge_file"] = gauge_file
-            dset.attrs["propagator"] = "prop1 smeared with boost -k and prop2 with +k, at source and sink (quarks boosted toward physical +z)"
             dset.attrs["time_reflection"] = "C_ab(Lt - t) = s_a s_b C_ab(t) with s = +1 for G5 and -1 for G45 (a = gamma_sink, b = gamma_source): the G5-G45 elements are odd, include the sign when averaging forward and backward"
             dset.attrs["measurements"] = [cfg]
             dset.attrs["momentums"] = momentum_list
@@ -282,6 +286,9 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             dset.attrs["z_src_list"] = z_src[i_cfg]
             dset.attrs["t_src_list"] = t_src[i_cfg]
             dset.attrs["dim_time"] = np.arange(pion_gamma_np.shape[-1])
+            dset.attrs["momentum_transfer"] = transfer_note
+            dset.attrs["src_phase_sign"] = src_phase_sign                 # -1: weight exp(src_phase_sign * i 2pi/Ls q.x_src)
+            dset.attrs["propagator"] = "prop1 smeared with boost -k and prop2 with +k, at source and sink (quarks boosted toward physical +z)"          # pion block
 
         with h5py.File(f"{gevp_dir}/{proton_filename}", "w") as f:
             dset = f.create_dataset("proton_gamma", data=proton_gamma_dirac_cpu)      # (nshape, nshape, nfrac, nfrac, 2, 2, 4, 4, nt, nq, nmom, 96)
@@ -308,10 +315,12 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             dset.attrs["t_src_list"] = t_src[i_cfg]
             dset.attrs["dim_time"] = np.arange(proton_gamma_dirac_cpu.shape[-1])
             dset.attrs["diquark"] = "C Gamma_sink at the sink, C Gamma_source at the source (equal to -Gamma_bar_source C for G5 and G45, an overall sign)"
-            dset.attrs["propagator"] = "prop2 (boost +k) for all three quark lines; source smearing = (shape_source, frac_source), sink smearing = (shape_sink, frac_sink)"
             dset.attrs["how_to_project"] = "NOT projected. C(t) = sum_kl parity_p[k,l] M[l,k] for t<Lt/2 and -sum_kl parity_m[k,l] M[l,k] for t>=Lt/2, M = this dataset, l = dirac_sink, k = dirac_source. Antiperiodic sign already applied. Time reflection: the projected backward correlator at Lt - t equals s_a s_b times the forward one at t, s = +1 for G5 and -1 for G45 (a = gamma_sink, b = gamma_source); include this sign when averaging forward and backward."
             f.create_dataset("parity_p", data=cp.asnumpy(parity_p))      # (1+g4)/2, forward half
             f.create_dataset("parity_m", data=cp.asnumpy(parity_m))      # (1-g4)/2, backward half, enters with a minus sign
+            dset.attrs["momentum_transfer"] = transfer_note
+            dset.attrs["src_phase_sign"] = src_phase_sign                 # -1: weight exp(src_phase_sign * i 2pi/Ls q.x_src)
+            dset.attrs["propagator"] = "prop2 (boost +k) for all three quark lines; source smearing = (shape_source, frac_source), sink smearing = (shape_sink, frac_sink)"   # proton block
     core.getLogger().info(f"SAVING SECTION:{perf_counter()-saving_started} secs")
     free, total = cp.cuda.runtime.memGetInfo()
     pool = cp.get_default_memory_pool()
