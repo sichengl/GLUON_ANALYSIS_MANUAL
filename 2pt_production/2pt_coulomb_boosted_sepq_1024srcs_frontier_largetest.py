@@ -9,7 +9,7 @@ from time import perf_counter
 from cupy.cuda.runtime import deviceSynchronize
 from tqdm import tqdm
 from coulomb_smearing import coulomb_boosted_source, coulomb_boosted_sink, coulomb_gauge_theta
-from sepq_2pt_setup_fermilab import *        # parameters, momentum lists, sources, paths; make_gamma_eps() and make_containers() need core.init first
+from sepq_2pt_setup_frontier import *        # parameters, momentum lists, sources, paths; make_gamma_eps() and make_containers() need core.init first
 
 
 parser = argparse.ArgumentParser()
@@ -250,9 +250,10 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
     #Files are written as .tmp and renamed when complete, so a job killed while saving leaves no half-filled file under the final name.
     deviceSynchronize()
     saving_started = perf_counter()
+    cfg_dir = f"{gevp_dir}/cfg{cfg}"                    # one directory per configuration
     if latt_info.mpi_rank == 0:
         os.makedirs(cfg_dir, exist_ok=True)             # also creates gevp_dir if it does not exist yet
-    
+
     for case, q_case, pf_case, frame_note in save_list:
         for particle in ["pion", "proton"]:
             corr = corr_dic[f"pion_{case}"] if particle == "pion" else corr_dic[f"proton_{case}_dirac"]
