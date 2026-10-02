@@ -52,6 +52,21 @@ pf_asy_non0xi_index = cp.asarray(pf_asy_non0xi_index_list)    # (36, 7)
 mom_phase = phase.MomentumPhase(latt_info)
 
 
+#======== GPU memory on the 40 GB A100s ========
+#QUDA allocates with cudaMalloc and cannot use the blocks cupy keeps cached after an array is freed: release them before every QUDA call.
+#The site-local contractions keep the time index, so they run on NT_CHUNK local time slices at a time (the last chunk may be shorter).
+NT_CHUNK = 4
+
+def release_cupy_cache():
+    cp.get_default_memory_pool().free_all_blocks()
+    cp.fft.config.get_plan_cache().clear()
+
+def log_gpu_memory(tag):
+    free, total = cp.cuda.runtime.memGetInfo()
+    pool = cp.get_default_memory_pool()
+    core.getLogger().info(f"{tag}: GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB")
+
+
 #======== output: one pion and one proton file per case and cfg ========
 gevp_dir = f"{current_dir}/{smear_tag}_GEVP_sepq_{len(t_base) * n_spatial_src}src_phyp"      # new directory: the 64-source qsrc files are never overwritten
 save_list = [   # (case, q list, p_f of every entry, frame)
@@ -76,6 +91,8 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
     for key in corr_dic:
         corr_dic[key][...] = 0
+    prop1 = prop2 = prop1_inv = prop2_inv = pf_phases_plain = None      # drop the previous cfg's arrays before QUDA works on the new gauge field
+    release_cupy_cache()
 
     #READ GAUGE
     deviceSynchronize()
@@ -107,7 +124,8 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
     core.getLogger().info(f"plaq_hyp_after = {gauge_hyp.plaquette()}")
     core.getLogger().info(f"HYP SMEAR: {perf_counter() - s} secs")
 
-    #LOAD GAUGE
+    #LOAD GAUGE (also builds the multigrid setup)
+    release_cupy_cache()
     dirac.loadGauge(gauge_hyp)
 
     for t_idx, t0 in enumerate(t_src[i_cfg]):
@@ -122,6 +140,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     src_pos = [x0, y0, z0, t0]
                     core.getLogger().info(f"SOURCE POSITION = {src_pos}")
                     #sink phases once, on the 99 momenta of pf_plain_list; conjugated so that the label is the physical momentum
+                    pf_phases_plain = None                                                     # drop the previous source position's phases first
                     pf_phases_plain = mom_phase.getPhases(pf_plain_list, src_pos).conj()      # (99, 2, Lt_local, Lz, Ly, Lx//2)
                     #source weights exp(-i 2pi/Ls q.x_src) / n_spatial_src, one per q of each case
                     x_vec = np.array([x0, y0, z0])
@@ -141,6 +160,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         #SRC: boosted Gaussian in Coulomb gauge, -k for prop1 and +k for prop2
                         #prop1 is conjugated, and will be used for anti-quark
                         #prop2 is not conjugated, and will be used for quark
+                        prop1 = prop2 = prop1_inv = prop2_inv = None      # drop the previous source smearing's propagators before allocating new ones
                         deviceSynchronize()
                         s = perf_counter()
                         core.getLogger().info(f"SRC SMEARING: {shape_names[i_src_shape]} rho_T {rho_T_src} rho_z {rho_z_src}, frac {mom_frac_list[i_src_frac]}")
@@ -151,11 +171,13 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
                         #INVERT
                         deviceSynchronize()
+                        release_cupy_cache()
                         s = perf_counter()
                         core.getLogger().info(f"SOLVING DIRAC EQ")
                         prop1_inv = core.invertPropagator(dirac, prop1_inv, mrhs=12)
                         prop2_inv = core.invertPropagator(dirac, prop2_inv, mrhs=12)
                         core.getLogger().info(f"INVERT 2 propagagors: {perf_counter() - s} secs")
+                        log_gpu_memory("AFTER INVERT")
 
                         for smear_snk in smear_list:
 
@@ -165,6 +187,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                             k_sink = k_list[i_snk_frac]
 
                             #SINK: the same smearing with the sink parameters, from the unsmeared solution each time
+                            prop1 = prop2 = None      # drop the previous sink smearing's propagators before allocating new ones
                             deviceSynchronize()
                             s = perf_counter()
                             core.getLogger().info(f"SINK SMEARING: {shape_names[i_snk_shape]} rho_T {rho_T_sink} rho_z {rho_z_sink}, frac {mom_frac_list[i_snk_frac]}")
@@ -179,18 +202,25 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
                             for i_gamma_sink, gamma_sink in enumerate(gamma_list):
 
-                                diquark = contract("def,gh,wtzyxhjeb,wtzyxgida->wtzyxijabf",eps_color, charge @ gamma_sink, prop2.data, prop2.data)
+                                CG_sink, G5G_sink = charge @ gamma_sink, G5 @ gamma_sink
+                                pion_open_plain   = cp.empty((4, 4, len(pf_plain_list), latt_info.Lt), "<c16")          # (4,4,99,Lt_local)
+                                proton_open_plain = cp.empty((4, 4, 4, 4, len(pf_plain_list), latt_info.Lt), "<c16")    # (4,4,4,4,99,Lt_local)
+                                for tc in range(0, latt_info.Lt, NT_CHUNK):
+                                    ts = slice(tc, tc + NT_CHUNK)
+                                    p1, p2, ph = prop1.data[:, ts], prop2.data[:, ts], pf_phases_plain[:, :, ts]
 
-                                # pion: colors and sink gamma summed at each site, then sites summed with the phases of the 99 momenta
-                                #       source spins l,i left open for the source gamma
-                                pion_open_plain = contract("pwtzyx,wtzyxjiba,jk,wtzyxklba->lipt",
-                                                           pf_phases_plain, prop1.data.conj(), G5 @ gamma_sink, prop2.data)          # (4,4,99,Lt_local)
+                                    diquark = contract("def,gh,wtzyxhjeb,wtzyxgida->wtzyxijabf", eps_color, CG_sink, p2, p2)
 
-                                # proton: colors and epsilon summed at each site, both Wick terms (step 1), then sites summed with the phases (step 2)
-                                #         source spins i,j and sink spins l,k left open
-                                proton_site  = contract("abc,wtzyxijabf,wtzyxlkfc->wtzyxijlk", eps_color, diquark, prop2.data)    # step 1, first term, 256 per site
-                                proton_site -= contract("abc,wtzyxkjcbf,wtzyxlifa->wtzyxijlk", eps_color, diquark, prop2.data)   # step 1, second term
-                                proton_open_plain = contract("pwtzyx,wtzyxijlk->ijlkpt", pf_phases_plain, proton_site)           # step 2, (4,4,4,4,99,Lt_local)
+                                    # pion: colors and sink gamma summed at each site, then sites summed with the phases of the 99 momenta
+                                    #       source spins l,i left open for the source gamma
+                                    pion_open_plain[..., ts] = contract("pwtzyx,wtzyxjiba,jk,wtzyxklba->lipt", ph, p1.conj(), G5G_sink, p2)
+
+                                    # proton: colors and epsilon summed at each site, both Wick terms (step 1), then sites summed with the phases (step 2)
+                                    #         source spins i,j and sink spins l,k left open
+                                    proton_site  = contract("abc,wtzyxijabf,wtzyxlkfc->wtzyxijlk", eps_color, diquark, p2)    # step 1, first term, 256 per site
+                                    proton_site -= contract("abc,wtzyxkjcbf,wtzyxlifa->wtzyxijlk", eps_color, diquark, p2)   # step 1, second term
+                                    proton_open_plain[..., ts] = contract("pwtzyx,wtzyxijlk->ijlkpt", ph, proton_site)       # step 2
+                                    del diquark, proton_site, p1, p2, ph
 
                                 # each case: its p_f columns, laid out as (q, pz)
                                 pion_open_forward      = pion_open_plain[:, :, pf_forward_index]                   # (4,4,1,7,Lt_local)

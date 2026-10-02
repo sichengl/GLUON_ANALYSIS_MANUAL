@@ -32,15 +32,15 @@ done
 
 # run folder: copies of exactly what runs (python imports these copies), this sbatch script, links to the two log files
 RUNDIR=/projects/biqz/$USER/2pt_production/testruns/sepq_test_${SLURM_JOB_ID}
-mkdir -p "$RUNDIR"
-cp "$SCRIPT" "$SETUP" "$SMEAR" "$RUNDIR"/
+mkdir -p "$RUNDIR" || exit 1
+cp "$SCRIPT" "$SETUP" "$SMEAR" "$RUNDIR"/ || exit 1
 cp "$0" "$RUNDIR/$SUBMIT" || cp "$SUBMIT" "$RUNDIR/$SUBMIT"      # $0 is the copy of this script that Slurm is running
 ln -s "$SLURM_SUBMIT_DIR/logs/pt2_sepq_test_${SLURM_JOB_ID}.out" "$SLURM_SUBMIT_DIR/logs/pt2_sepq_test_${SLURM_JOB_ID}.err" "$RUNDIR"/
 date; hostname
 
 # environment: conda env pyquda, QUDA_PATH, LD_LIBRARY_PATH (Cray PE defaults: PrgEnv-gnu, cray-mpich, cudatoolkit)
 source ~/env_pyquda.sh
-cd "$RUNDIR"
+cd "$RUNDIR" || exit 1
 export PYTHONPATH=$RUNDIR:$PYTHONPATH
 
 # QUDA
@@ -51,13 +51,14 @@ export QUDA_ENABLE_DEVICE_MEMORY_POOL=0
 mkdir -p "$QUDA_RESOURCE_PATH"
 
 # run parameters: one configuration (override with: ICFG=5 sbatch 2pt_coulomb_boosted_sepq_1024srcs_delta_largetest.sh)
-ICFG=${ICFG:-0}                     # ICFG=5 is cfg 234: its q phases are not all 1, unlike cfg 204
-python -c "import pyquda, cupy, mpi4py; print('pyquda', pyquda.__version__, 'cupy', cupy.__version__, 'mpi4py', mpi4py.__version__)"
+ICFG=${ICFG:-0}                     # ICFG=5 is cfg 234
+# versions, and the modules the script imports, without starting MPI outside srun (importing pyquda calls MPI_Init)
+python -c "import importlib.metadata as m; print(*(f'{p} {m.version(p)}' for p in ['pyquda', 'pyquda-utils', 'cupy-cuda13x', 'mpi4py', 'numpy', 'h5py', 'opt_einsum', 'tqdm']), sep=', ')" || exit 1
 nvidia-smi -L
 nvidia-smi topo -m
 
-# GPU memory of all 4 GPUs every 30 s, to see the peak (QUDA and cupy together) on the 40 GB A100s
-nvidia-smi --query-gpu=timestamp,index,memory.used,memory.total --format=csv,noheader -l 30 > "$RUNDIR/gpu_mem_${SLURM_JOB_ID}.csv" &
+# GPU memory of all 4 GPUs every 2 s, to see the peak (QUDA and cupy together) on the 40 GB A100s
+nvidia-smi --query-gpu=timestamp,index,memory.used,memory.total --format=csv,noheader -lms 2000 > "$RUNDIR/gpu_mem_${SLURM_JOB_ID}.csv" &
 MONITOR=$!
 
 # cray-mpich has Slurm PMI: launch with srun. --gpu-bind=none: PyQUDA gives node-local rank i GPU i, so every rank must see all 4 GPUs.
