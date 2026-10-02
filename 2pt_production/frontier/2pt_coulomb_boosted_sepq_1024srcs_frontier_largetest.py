@@ -1,6 +1,3 @@
-#===========================================
-#On frontier, we try to
-#===========================================
 import os
 import argparse
 import h5py
@@ -35,6 +32,13 @@ latt_info = core.LatticeInfo([Ls, Ls, Ls, Lt], -1, 1.0)
 if latt_info.mpi_rank == 0:
     print(make_run_parameters(n, t_src, x_src, y_src, z_src))
 dirac = core.getDirac(latt_info, -0.05138, 1e-10, 1000, 1.0, 1.04243, 1.04243, [[4, 4, 4, 4],[2,2,2,2]])
+
+
+def mem_report():
+    """GPU used = everything on this GCD (cupy pool + QUDA); cupy pool = cupy's high-water mark, kept until free_all_blocks(); cupy live = cupy arrays alive now"""
+    free, total = cp.cuda.runtime.memGetInfo()
+    pool = cp.get_default_memory_pool()
+    return f"GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB"
 
 
 #======== gamma matrices, epsilon tensor, containers (cupy arrays: after core.init) ========
@@ -156,9 +160,11 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         deviceSynchronize()
                         s = perf_counter()
                         core.getLogger().info(f"SOLVING DIRAC EQ")
+                        #the blocks cupy cached during the last contraction go back to the driver: QUDA allocates its solver workspace with hipMalloc and aborts if that fails
+                        cp.get_default_memory_pool().free_all_blocks()
                         prop1_inv = core.invertPropagator(dirac, prop1_inv, mrhs=12)
                         prop2_inv = core.invertPropagator(dirac, prop2_inv, mrhs=12)
-                        core.getLogger().info(f"INVERT 2 propagagors: {perf_counter() - s} secs")
+                        core.getLogger().info(f"INVERT 2 propagagors: {perf_counter() - s} secs, {mem_report()}")
 
                         for smear_snk in smear_list:
 
@@ -241,25 +247,31 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                                     proton_plain_dirac[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source, :, :, t_idx] += contract(
                                     "q,ij,ijlkpt->lkqpt", src_phase_plain, charge @ gamma_source, proton_open_plain)                          # (4, 4, 1, 99, Lt_local)
 
-                            deviceSynchronize()
-                            core.getLogger().info(f"CONTRACT ALL: {perf_counter() - s} secs")
+                                #free before the next gamma_sink: `diquark = contract(...)` builds the new one while the old one is still bound (3 + 1.78 propagators)
+                                del diquark, proton_site, pion_open_plain, proton_open_plain
 
-                    free, total = cp.cuda.runtime.memGetInfo()
-                    pool = cp.get_default_memory_pool()
-                    core.getLogger().info(f"GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB")
+                            deviceSynchronize()
+                            core.getLogger().info(f"CONTRACT ALL: {perf_counter() - s} secs, {mem_report()}")
+                            del prop1, prop2                    # otherwise alive through the next sink smearing and the next solves
+
+                        del prop1_inv, prop2_inv                # otherwise alive while the next sources are built
+
+                    del pf_phases_plain                         # otherwise alive while the next source's phases are built, and through the saving section
+                    core.getLogger().info(mem_report())
                     core.getLogger().info(f"UNTIL CONTRACTION: {perf_counter() - inner_loop} secs")
 
     #SAVE: every rank gathers each (container, t_src) slab in the same order (gatherLattice is collective), rank 0 rolls it and writes it.
     #Files are written as .tmp and renamed when complete, so a job killed while saving leaves no half-filled file under the final name.
     deviceSynchronize()
     saving_started = perf_counter()
+    cfg_dir = f"{gevp_dir}/cfg{cfg}"                    # one directory per configuration
     if latt_info.mpi_rank == 0:
-        os.makedirs(gevp_dir, exist_ok=True)
+        os.makedirs(cfg_dir, exist_ok=True)             # also creates gevp_dir if it does not exist yet
 
     for case, q_case, pf_case, frame_note in save_list:
         for particle in ["pion", "proton"]:
             corr = corr_dic[f"pion_{case}"] if particle == "pion" else corr_dic[f"proton_{case}_dirac"]
-            filename = f"{gevp_dir}/{particle}_{smear_tag}_GEVP_sepq_{case}_phyp_cfg{cfg}.h5"
+            filename = f"{cfg_dir}/{particle}_{smear_tag}_GEVP_sepq_{case}_phyp_cfg{cfg}.h5"
             dim_head = ["shape_sink","shape_source","frac_sink","frac_source","gamma_sink","gamma_source"] + (["dirac_sink","dirac_source"] if particle == "proton" else [])
             dim_tail = ["t_src_list","q_list","momentum_list","time"] if case == "plain" else ["t_src_list","q_list","pz","time"]
 
@@ -317,7 +329,5 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                 os.replace(f"{filename}.tmp", filename)
 
     core.getLogger().info(f"SAVING SECTION:{perf_counter()-saving_started} secs")
-    free, total = cp.cuda.runtime.memGetInfo()
-    pool = cp.get_default_memory_pool()
-    core.getLogger().info(f"END CFG #{cfg}: GPU used {(total - free)/1e9:.1f} GB, cupy pool {pool.total_bytes()/1e9:.1f} GB, cupy live {pool.used_bytes()/1e9:.1f} GB")
+    core.getLogger().info(f"END CFG #{cfg}: {mem_report()}")
 dirac.freeGauge()

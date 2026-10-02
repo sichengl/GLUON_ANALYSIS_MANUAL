@@ -1,3 +1,6 @@
+#===========================================
+#On frontier, we try to run this job using only 2 gpus
+#===========================================
 import os
 import argparse
 import h5py
@@ -9,7 +12,7 @@ from time import perf_counter
 from cupy.cuda.runtime import deviceSynchronize
 from tqdm import tqdm
 from coulomb_smearing import coulomb_boosted_source, coulomb_boosted_sink, coulomb_gauge_theta
-from sepq_2pt_setup_fermilab import *        # parameters, momentum lists, sources, paths; make_gamma_eps() and make_containers() need core.init first
+from sepq_2pt_setup_frontier import *        # parameters, momentum lists, sources, paths; make_gamma_eps() and make_containers() need core.init first
 
 
 parser = argparse.ArgumentParser()
@@ -27,7 +30,7 @@ t_src, x_src, y_src, z_src = make_sources(ncfg)
 
 
 #======== QUDA initialization ========
-core.init([1, 1, 1, 4], resource_path=quda_resource_path)
+core.init([1, 1, 1, 2], resource_path=quda_resource_path)
 latt_info = core.LatticeInfo([Ls, Ls, Ls, Lt], -1, 1.0)
 if latt_info.mpi_rank == 0:
     print(make_run_parameters(n, t_src, x_src, y_src, z_src))
@@ -251,12 +254,12 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
     deviceSynchronize()
     saving_started = perf_counter()
     if latt_info.mpi_rank == 0:
-        os.makedirs(cfg_dir, exist_ok=True)             # also creates gevp_dir if it does not exist yet
-    
+        os.makedirs(gevp_dir, exist_ok=True)
+
     for case, q_case, pf_case, frame_note in save_list:
         for particle in ["pion", "proton"]:
             corr = corr_dic[f"pion_{case}"] if particle == "pion" else corr_dic[f"proton_{case}_dirac"]
-            filename = f"{cfg_dir}/{particle}_{smear_tag}_GEVP_sepq_{case}_phyp_cfg{cfg}.h5"
+            filename = f"{gevp_dir}/{particle}_{smear_tag}_GEVP_sepq_{case}_phyp_cfg{cfg}.h5"
             dim_head = ["shape_sink","shape_source","frac_sink","frac_source","gamma_sink","gamma_source"] + (["dirac_sink","dirac_source"] if particle == "proton" else [])
             dim_tail = ["t_src_list","q_list","momentum_list","time"] if case == "plain" else ["t_src_list","q_list","pz","time"]
 
