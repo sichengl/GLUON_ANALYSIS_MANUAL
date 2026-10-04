@@ -9,7 +9,7 @@
 #    fermilab_params.t_base = np.arange(0, fermilab_params.GLt, 6)
 #    ...
 #and call the functions on it, passing what they need at run time:
-#    t_src, x_src, y_src, z_src = fermilab_params.make_sources(ncfg)
+#    t_src, x_src, y_src, z_src = fermilab_params.make_sources(measurement_list)
 #    fermilab_params.init_quda(quda_resource_path)
 #    latt_info = fermilab_params.make_latt_info()
 #    dirac = fermilab_params.make_dirac(latt_info)
@@ -55,7 +55,8 @@ def make_eps():
 class TwoPtParams:
 
     def __init__(self):
-        #every parameter the functions below use; the setup file sets them one by one (those with a value here have a default)
+        #the parameters of a 2pt run: the methods below use some, the 2pt scripts read the others directly.
+        #The setup file sets them one by one (those with a value here have a default)
         #lattice, cfgs and sources
         self.GLs = None                 #global lattice size, as PyQUDA names it: GLs = GLx = GLy = GLz in space, GLt in time
         self.GLt = None                 #(latt_info.Lt is the local time extent of one rank, GLt / Gt)
@@ -95,7 +96,7 @@ class TwoPtParams:
         self.hyp_compute_plaquette = True       #print the plaquette after smearing (diagnostic only)
         self.hyp_compute_qcharge = True         #print the topological charge after smearing (diagnostic only)
         #contraction and job
-        self.nt_chunk = None            #local time slices per site-local contraction, to save GPU memory; None: all at once
+        self.nt_chunk = None            #local time slices per site-local contraction, to save GPU memory: must be set where the script chunks (delta)
         self.icfg = 0                   #default of --icfg: position in cfg_list of the job's first cfg
         self.n_cfg = 20                 #default of --n: number of cfgs the job measures
         #smearing and gammas
