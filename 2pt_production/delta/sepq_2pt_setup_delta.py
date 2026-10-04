@@ -21,6 +21,13 @@ gamma_ids   = [15, 7]
 gamma_names = ["G5", "G45"]
 
 
+#======== forward and backward time slices of the *_tsrcsave_fb output (taken after the roll, so index 0 is t_src) ========
+tsep_max = 20
+forward_index  = np.arange(tsep_max)             # 0, 1, 2, ..., 19:   C(t_src + tsep)
+backward_index = (-np.arange(tsep_max)) % Lt     # 0, 95, 94, ..., 77: C(t_src - tsep)
+fb_index = {"pt2_forward": forward_index, "pt2_backward": backward_index}      # dataset name in the .h5 file: its time slices after the roll
+
+
 #======== list definitions ========
 q_forward_list    = [[ 0, 0, 0]]
 q_sym_0xi_list     = [[ 2, 0, 0],[-2, 0, 0],[ 0, 2, 0],[ 0,-2, 0],[ 2, 2, 0],[ 2,-2, 0],[-2, 2, 0],[-2,-2, 0]]
@@ -125,6 +132,53 @@ def make_containers(latt_info):
         "proton_asy_non0xi_dirac": proton(len(q_asy_non0xi_list), len(pz_list)),
         "pion_plain":              pion(  len(q_plain_list),      len(pf_plain_list)),
         "proton_plain_dirac":      proton(len(q_plain_list),      len(pf_plain_list)),
+    }
+
+
+#containers without the t_src index: they hold only the t_src being computed, so the GPU never holds more than one t_src of results
+def make_containers_one_tsrc(latt_info):
+    import cupy as cp
+    n_shape, n_frac, n_gamma = len(shape_list), len(mom_frac_list), len(gamma_ids)
+    pion   = lambda n_q, n_p: cp.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma,       n_q, n_p, latt_info.Lt), "<c16")
+    proton = lambda n_q, n_p: cp.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma, 4, 4, n_q, n_p, latt_info.Lt), "<c16")
+    return {
+        "pion_forward":            pion(  len(q_forward_list),    len(pz_list)),
+        "proton_forward_dirac":    proton(len(q_forward_list),    len(pz_list)),
+        "pion_sym_0xi":            pion(  len(q_sym_0xi_list),    len(pz_list)),
+        "proton_sym_0xi_dirac":    proton(len(q_sym_0xi_list),    len(pz_list)),
+        "pion_sym_non0xi":         pion(  len(q_sym_non0xi_list), len(pz_list)),
+        "proton_sym_non0xi_dirac": proton(len(q_sym_non0xi_list), len(pz_list)),
+        "pion_asy_0xi":            pion(  len(q_asy_0xi_list),    len(pz_list)),
+        "proton_asy_0xi_dirac":    proton(len(q_asy_0xi_list),    len(pz_list)),
+        "pion_asy_non0xi":         pion(  len(q_asy_non0xi_list), len(pz_list)),
+        "proton_asy_non0xi_dirac": proton(len(q_asy_non0xi_list), len(pz_list)),
+        "pion_plain":              pion(  len(q_plain_list),      len(pf_plain_list)),
+        "proton_plain_dirac":      proton(len(q_plain_list),      len(pf_plain_list)),
+    }
+
+
+#forward and backward 2pt of one t_src: numpy arrays on the host (no core.init needed), tsep_max time slices instead of Lt.
+#Two containers per particle and case: fb_dic["pt2_forward"][key] and fb_dic["pt2_backward"][key], key as in make_containers_one_tsrc
+def make_containers_one_tsrc_fb():
+    n_shape, n_frac, n_gamma = len(shape_list), len(mom_frac_list), len(gamma_ids)
+    pion   = lambda n_q, n_p: np.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma,       n_q, n_p, tsep_max), "<c16")
+    proton = lambda n_q, n_p: np.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma, 4, 4, n_q, n_p, tsep_max), "<c16")
+    return {
+        pt2: {
+            "pion_forward":            pion(  len(q_forward_list),    len(pz_list)),
+            "proton_forward_dirac":    proton(len(q_forward_list),    len(pz_list)),
+            "pion_sym_0xi":            pion(  len(q_sym_0xi_list),    len(pz_list)),
+            "proton_sym_0xi_dirac":    proton(len(q_sym_0xi_list),    len(pz_list)),
+            "pion_sym_non0xi":         pion(  len(q_sym_non0xi_list), len(pz_list)),
+            "proton_sym_non0xi_dirac": proton(len(q_sym_non0xi_list), len(pz_list)),
+            "pion_asy_0xi":            pion(  len(q_asy_0xi_list),    len(pz_list)),
+            "proton_asy_0xi_dirac":    proton(len(q_asy_0xi_list),    len(pz_list)),
+            "pion_asy_non0xi":         pion(  len(q_asy_non0xi_list), len(pz_list)),
+            "proton_asy_non0xi_dirac": proton(len(q_asy_non0xi_list), len(pz_list)),
+            "pion_plain":              pion(  len(q_plain_list),      len(pf_plain_list)),
+            "proton_plain_dirac":      proton(len(q_plain_list),      len(pf_plain_list)),
+        }
+        for pt2 in fb_index
     }
 
 
