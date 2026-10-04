@@ -55,10 +55,12 @@ def make_eps():
 class TwoPtParams:
 
     def __init__(self):
-        #every parameter the functions below use; the setup file sets them one by one (the two shifts have defaults)
-        #lattice and sources
+        #every parameter the functions below use; the setup file sets them one by one (those with a value here have a default)
+        #lattice, cfgs and sources
         self.GLs = None                 #global lattice size, as PyQUDA names it: GLs = GLx = GLy = GLz in space, GLt in time
         self.GLt = None                 #(latt_info.Lt is the local time extent of one rank, GLt / Gt)
+        self.cfg_first = None           #number of the first cfg of the ensemble
+        self.cfg_step = None            #step between cfg numbers: cfg = cfg_first + cfg_step * (index of the cfg)
         self.t_base = None
         self.x_base = None
         self.y_base = None
@@ -76,6 +78,26 @@ class TwoPtParams:
         self.clover_coeff_t = None      #clover coefficients: at anisotropy 1, csw = clover_coeff_t and clover_coeff_r is not used
         self.clover_coeff_r = None
         self.multigrid = None           #multigrid block sizes, e.g. [[4, 4, 4, 4], [2, 2, 2, 2]]: 3 levels, blocking 4^4 sites, then 2^4
+        self.mrhs = 12                  #right-hand sides solved together by invertPropagator: 12 = all spin-color columns at once
+        #gauge field preparation: the arguments of gauge.fixingOVR and gauge.hypSmear, with PyQUDA's names
+        self.gauge_fix_dir = 3                  #3 Coulomb gauge (the boosted smearing needs it), 4 Landau
+        self.gauge_fix_Nsteps = None            #maximum number of overrelaxation steps
+        self.gauge_fix_verbose_interval = None  #print the gauge fixing status every this many steps
+        self.gauge_fix_relax_boost = None       #overrelaxation parameter, usually 1.5 or 1.7
+        self.gauge_fix_tolerance = None         #stop when the gauge fixing quality is below this (0: always run Nsteps)
+        self.gauge_fix_reunit_interval = None   #reunitarize the links every this many steps
+        self.gauge_fix_stopWtheta = None        #quantity compared with tolerance: 1 theta, 0 the MILC criterion
+        self.hyp_n_steps = None                 #number of HYP smearing steps
+        self.hyp_alpha1 = None                  #the three HYP smearing parameters
+        self.hyp_alpha2 = None
+        self.hyp_alpha3 = None
+        self.hyp_dir_ignore = -1                #direction left unsmeared: -1 smears all four
+        self.hyp_compute_plaquette = True       #print the plaquette after smearing (diagnostic only)
+        self.hyp_compute_qcharge = True         #print the topological charge after smearing (diagnostic only)
+        #contraction and job
+        self.nt_chunk = None            #local time slices per site-local contraction, to save GPU memory; None: all at once
+        self.icfg = 0                   #default of --icfg: position in cfg_list of the job's first cfg
+        self.n_cfg = 20                 #default of --n: number of cfgs the job measures
         #smearing and gammas
         self.shape_list = None
         self.mom_frac_list = None
@@ -98,7 +120,10 @@ class TwoPtParams:
 
 
     #======== sources and run parameters ========
-    def make_sources(self, ncfg):
+    def make_sources(self, cfgs):
+        #cfgs: cfg numbers; the sources of a cfg are shifted according to its index (cfg - cfg_first) / cfg_step
+        ncfg, rest = np.divmod(np.asarray(cfgs) - self.cfg_first, self.cfg_step)
+        assert np.all(rest == 0), f"every cfg must be cfg_first + cfg_step * n (cfg_first {self.cfg_first}, cfg_step {self.cfg_step})"
         #a shift coprime to the lattice size is coprime to the source spacing too, so the sources go through as many different sets as possible
         assert math.gcd(self.temporal_shift, self.GLt) == 1, f"temporal_shift {self.temporal_shift} is not coprime to GLt {self.GLt}"
         assert math.gcd(self.spatial_shift, self.GLs) == 1, f"spatial_shift {self.spatial_shift} is not coprime to GLs {self.GLs}"
