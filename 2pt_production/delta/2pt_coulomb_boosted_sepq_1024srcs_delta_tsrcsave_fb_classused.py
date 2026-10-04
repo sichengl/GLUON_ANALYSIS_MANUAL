@@ -41,11 +41,7 @@ G4, G5, charge = gamma.gamma(8), gamma.gamma(15), gamma.gamma(10)     # g4, g5 a
 parity_p = (gamma.gamma(0) + gamma.gamma(8)) / 2                      # (1 + g4) / 2
 parity_m = (gamma.gamma(0) - gamma.gamma(8)) / 2                      # (1 - g4) / 2
 eps_color = make_eps()
-#GPU containers without the t_src index (make_containers_one_tsrc in pt2_comm_tools): they hold only the t_src being computed, with all local time slices,
-#are zeroed when it starts and are saved to parts/ when it ends, so the GPU never holds more than one t_src of results
 corr_dic = delta_params.make_containers_one_tsrc(latt_info)
-#host containers of the forward and backward 2pt of one t_src, tsep_max time slices each (make_containers_one_tsrc_fb in pt2_comm_tools):
-#rank 0 fills them from the gathered and rolled correlator when the t_src is saved, so only rank 0 needs them
 fb_dic = delta_params.make_containers_one_tsrc_fb() if latt_info.mpi_rank == 0 else None
 pion_forward,    proton_forward_dirac    = corr_dic["pion_forward"],    corr_dic["proton_forward_dirac"]
 pion_sym_0xi,    proton_sym_0xi_dirac    = corr_dic["pion_sym_0xi"],    corr_dic["proton_sym_0xi_dirac"]
@@ -62,12 +58,6 @@ pf_asy_non0xi_index = cp.asarray(pf_asy_non0xi_index_list)    # (36, 7)
 mom_phase = phase.MomentumPhase(latt_info)
 
 
-#======== GPU memory on the 40 GB A100s ========
-#QUDA allocates with cudaMalloc and cannot use the blocks cupy keeps cached after an array is freed: release them before every QUDA call
-#(release_cupy_cache and log_gpu_memory come from pt2_comm_tools).
-#The site-local contractions keep the time index, so they run on delta_params.nt_chunk local time slices at a time (the last chunk may be shorter).
-
-
 #======== output: one pion and one proton file per case and cfg ========
 gevp_dir = f"{current_dir}/{smear_tag}_GEVP_sepq_{len(delta_params.t_base) * n_spatial_src}src_phyp_fb_tsep{delta_params.tsep_max}"      # new directory: never mixed with the full-time files of *_tsrcsave.py
 save_list = [   # (case, q list, p_f of every entry, frame)
@@ -81,11 +71,6 @@ save_list = [   # (case, q list, p_f of every entry, frame)
 #the notes written into the .h5 attributes (smearing_note, gauge_fix_note, momentum_note, source_note, time_reflection_note, time_index_note) are in the setup file
 
 #======== saving per t_src ========
-#The containers hold one t_src (no t_src index). As soon as all spatial sources of a t_src are done, rank 0 gathers and rolls every container, keeps its
-#forward and backward tsep_max time slices (fb_index of the setup) and writes them to {cfg_dir}/parts/ (one .npy per file, t_src and direction).
-#When all t_src of a cfg are done, the parts are merged into .h5 files with two datasets, pt2_forward and pt2_backward, and deleted.
-#A rerun of the same cfg skips every t_src whose parts are on disk, and skips the cfg if its .h5 files are on disk.
-#If you change the sources or the smearing, delete the old parts/ folder by hand first.
 file_list = [(case, particle) for case, q_case, pf_case, frame_note in save_list for particle in ["pion", "proton"]]
 
 def h5_name(cfg_dir, case, particle, cfg):
