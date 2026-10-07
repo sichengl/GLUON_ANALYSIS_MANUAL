@@ -19,3 +19,5 @@ bare_matrix_element_*/
 .DS_Store
 .ipynb_checkpoints/
 __pycache__/
+
+pyquda_source/
