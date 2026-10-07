@@ -19,10 +19,10 @@ fermilab_params.cfg_first = 204
 fermilab_params.cfg_step = 6
 
 #sources of the first cfg; they move by temporal_shift and spatial_shift from one cfg to the next
-fermilab_params.t_base = np.arange(0, fermilab_params.GLt, 12)    # 8 t_src
+fermilab_params.t_base = np.arange(0, fermilab_params.GLt, 24)    # 4 t_src
 fermilab_params.x_base = np.arange(0, fermilab_params.GLs, 16)    # 2 x
 fermilab_params.y_base = np.arange(0, fermilab_params.GLs, 16)    # 2 y
-fermilab_params.z_base = np.array([0])                            # 1 z: 8 x 2 x 2 x 1 = 32 sources
+fermilab_params.z_base = np.arange(0, fermilab_params.GLs, 16)    # 2 z                      # 4 x 2 x 2 x 2 = 32 sources
 
 #QUDA: grid of 4 GPUs along t, clover Wilson Dirac operator, multigrid solver
 fermilab_params.grid_size = [1, 1, 1, 4]
@@ -48,7 +48,7 @@ fermilab_params.hyp_alpha3 = 0.3
 #quark boost k = mom_frac * mom_max along z, interpolators
 fermilab_params.mom_min = 0
 fermilab_params.mom_max = 6
-fermilab_params.gamma_ids = [15, 7]                # Gamma(15) = G5, Gamma(7) = G5G4 = -G4G5
+fermilab_params.gamma_ids = [15, 7,11]                # Gamma(15) = G5, Gamma(7) = G5G4 = -G4G5
 
 #sink momenta: the 99 p_f of the production's plain case (px, py in 0, -1, 1 and pz in -2 .. 8), which also hold the p_f and p_i of its q != 0 cases
 fermilab_params.pz_list = list(range(fermilab_params.mom_min, fermilab_params.mom_max + 1))
@@ -86,36 +86,38 @@ fermilab_params.n_cfg = 1
 smear_tag = "coulomb_tune1"
 smear_list = [
     #rho_T  rho_z       mom_frac
-    [2.0,   2.0 / 2,    0.3],
-    [2.0,   2.0 / 2,    0.4],
-    [2.0,   2.0 / 2,    0.5],
-    [2.5,   2.5 / 2,    0.3],
-    [2.5,   2.5 / 2,    0.4],
-    [2.5,   2.5 / 2,    0.5],
-    [2.5,   2.5 / 2,    0.6],
-    [3.0,   3.0 / 2,    0.4],
-    [3.0,   3.0 / 2,    0.5],
-    [3.0,   3.0 / 2,    0.6],
-    [3.25,  3.25 / 2,   0.4],
-    [3.25,  3.25 / 2,   0.5],
-    [3.25,  3.25 / 2,   0.6],      # aniso, frac 0.6 of the earlier tests and of the production
-    [3.25,  3.25 / 2,   0.7],      # aniso, frac 0.7 of the frac0p65-0p7-0p75 test
-    [3.5,   3.5 / 2,    0.5],
-    [3.5,   3.5 / 2,    0.6],
+    
+    #======for low pz======
+    [2.0,   2.0    ,      0],
+    [2.0,   2.0 / 2,    0.2],
+    [2.0,   2.0 / 2,    0.35],
+    
+    [2.5,   2.5    ,      0],
+    [2.5,   2.5 / 2,    0.2],
+    [2.5,   2.5 / 2,    0.35],
+
+    [3.0,   3.0    ,      0],
+    [3.0,   3.0 / 2,    0.2],
+    [3.0,   3.0 / 2,    0.35],
+    
+
+    #======for high pz======
+    [3.25,  3.25 / 2,   0.7],      
+    [3.25,  3.25 / 2,   0.8],
+    [3.25,  3.25 / 3,   0.8],     
     [3.5,   3.5 / 2,    0.7],
-    [4.0,   4.0 / 2,    0.5],
-    [4.0,   4.0 / 2,    0.6],
+    [3.5,   3.5 / 2,    0.8],
+    [3.5,   3.5 / 3,    0.8],
     [4.0,   4.0 / 2,    0.7],
     [4.0,   4.0 / 2,    0.8],
-    [4.5,   4.5 / 2,    0.6],
+    [4.0,   4.0 / 3,    0.8],
     [4.5,   4.5 / 2,    0.7],
     [4.5,   4.5 / 2,    0.8],
-    [5.0,   5.0 / 2,    0.6],
+    [4.5,   4.5 / 3,    0.8],
     [5.0,   5.0 / 2,    0.7],
     [5.0,   5.0 / 2,    0.8],
-    [6.0,   6.0 / 2,    0.6],
-    [6.0,   6.0 / 2,    0.7],
-    [6.0,   6.0 / 2,    0.8],
+    [5.0,   5.0 / 3,    0.8],
+    
 ]
 assert len(smear_list) <= 30, "at most 30 smearings: the time limit of the sbatch script assumes it"
 assert len({tuple(row) for row in smear_list}) == len(smear_list), "smear_list has a repeated row"
@@ -142,8 +144,8 @@ momentum_note = ("sink phase exp(-2 pi i p.(x - x_src)/L) (conjugate of PyQUDA M
                  "momentum p_f of every entry; the quarks are boosted toward physical +z, so +pz has the best overlap")
 source_note = (f"spatial sources averaged: for every t_src, plain mean over the {n_spatial_src} positions x_src_list x y_src_list x z_src_list "
                "(q = 0, no phase weight)")
-time_reflection_note = ("C_ab(Lt - t) = s_a s_b C_ab(t) with s = +1 for G5, -1 for G5G4 (a = gamma_sink, b = gamma_source): "
-                        "the G5-G5G4 elements are odd, include the sign when averaging forward and backward")
+time_reflection_note = ("C_ab(Lt - t) = s_a s_b C_ab(t) with s = +1 for G5, -1 for G5G4, +1 for G3G5 (a = gamma_sink, b = gamma_source): "
+                        "the elements pairing G5G4 with G5 or G3G5 are odd, include the sign when averaging forward and backward")
 time_index_note = (f"pt2_forward[..., tsep] = C(t_src + tsep), pt2_backward[..., tsep] = C(t_src - tsep), tsep = 0 .. {fermilab_params.tsep_max - 1}; "
                    "index 0 is the source slice in both. dim_time gives the time after the roll, (t - t_src) % Lt, of every tsep; the other time slices are not saved")
 
