@@ -5,6 +5,7 @@
 
 #new codes
 ball_sum/
+*ball*
 
 # plots and fit outputs
 *.png
