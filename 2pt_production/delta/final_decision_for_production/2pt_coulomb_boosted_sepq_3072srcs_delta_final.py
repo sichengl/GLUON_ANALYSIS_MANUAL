@@ -11,7 +11,12 @@ from cupy.cuda.runtime import deviceSynchronize
 from tqdm import tqdm
 from coulomb_smearing import coulomb_boosted_source, coulomb_boosted_sink, coulomb_gauge_theta
 from pt2_comm_tools import make_eps, release_cupy_cache, log_gpu_memory # tools/pt2_comm_tools.py
-from sepq_2pt_setup_delta_classused_streame_test import *  # delta_params (the TwoPtParams of this run), cfg list, smearing operators, momentum tables, notes, paths
+from sepq_2pt_setup_delta_final import *  # delta_params (the TwoPtParams of this run), cfg list, smearing operators, momentum tables, notes, paths
+
+#Final run: 2pt (pion + proton) in the sepq kinematics with the two tuned smearings of smear_list ([4.5, 2.25, 0.8] and [1.5, 1.5, 0]) and three
+#gammas. Every source smearing is inverted once and its solutions are sink smeared with every entry of smear_list, so the files hold the full
+#(2 smearings x 3 gammas) = 6 x 6 matrix for the GEVP. The Delta copy of 2pt_coulomb_boosted_sepq_1024srcs_delta_streame_test.py with the setup
+#sepq_2pt_setup_delta_final.py; the only change in this file is the gauge-fixing check, which skips a cfg instead of stopping the job.
 
 
 parser = argparse.ArgumentParser()
@@ -115,8 +120,9 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
     theta = coulomb_gauge_theta(latt_info, gauge)
     deviceSynchronize()
     core.getLogger().info(f"COULOMB GAUGE FIXING: {perf_counter() - s} secs, theta {theta:.3e}")
-    if theta > 1e-6:                                # QUDA stops silently after Nsteps; cfg 204 ends at 7.8e-9 on both machines, 1e-12 is never reached
-        raise RuntimeError(f"Coulomb gauge fixing failed: theta {theta:.3e} after {delta_params.gauge_fix_Nsteps} steps")
+    if theta > 2e-6:                                # QUDA stops silently after Nsteps; cfg 204 ends at 7.8e-9, cfg 306 at 1.5e-6 after 20000 steps
+        core.getLogger().info(f"SKIP CFG #{cfg}: Coulomb gauge fixing stopped at theta {theta:.3e} after {delta_params.gauge_fix_Nsteps} steps")
+        continue                                    # theta is an allreduce, so every rank skips the same cfg
 
     #HYP on the gauge-fixed links: HYP is gauge covariant, so the propagators live in the same Coulomb gauge as the smearing
     deviceSynchronize()

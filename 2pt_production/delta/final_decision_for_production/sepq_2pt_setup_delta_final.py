@@ -1,6 +1,7 @@
-#Delta intermediate-scale test on stream e: 200 cfgs (204, 210, ..., 1398) with the 8t x 4x x 4y x 8z = 1024 sources per cfg,
-#four smearing shapes, each smeared with one boost only (see smear_list), and three gammas (G5, G5G4, G3G5).
-#Based on sepq_2pt_setup_delta_classused_streame_test.py: differs in the shapes, boosts, gammas, cfg list and output folder name.
+#Delta final run on stream e: 200 cfgs (204, 210, ..., 1398) with the 24t x 4x x 4y x 8z = 3072 sources per cfg, the two smearings chosen by the
+#smearing tuning (runs 1-4, smear _tuning/), each with its own boost (see smear_list), and three gammas (G5, G5G4, G3G5): the 2 x 3 = 6 interpolators
+#of the GEVP. Source and sink smearings run over both entries of smear_list, so the files hold the full 6 x 6 matrix.
+#Based on sepq_2pt_setup_delta_classused_streame_test_200cfg.py: differs in the source grid, the smearings, the gauge-fixing steps and the output folder.
 import numpy as np
 from pt2_comm_tools import TwoPtParams          # tools/pt2_comm_tools.py: the job script copies it into the run folder
 
@@ -16,10 +17,10 @@ delta_params.cfg_first = 204
 delta_params.cfg_step = 6
 
 #sources of the first cfg; they move by temporal_shift and spatial_shift from one cfg to the next
-delta_params.t_base = np.arange(0, delta_params.GLt, 12)    # 8 t_src
+delta_params.t_base = np.arange(0, delta_params.GLt, 4)     # 24 t_src
 delta_params.x_base = np.arange(0, delta_params.GLs, 8)     # 4 x
 delta_params.y_base = np.arange(0, delta_params.GLs, 8)     # 4 y
-delta_params.z_base = np.arange(0, delta_params.GLs, 4)     # 8 z
+delta_params.z_base = np.arange(0, delta_params.GLs, 4)     # 8 z                      # 24 x 4 x 4 x 8 = 3072 sources
 
 #QUDA: grid of 4 GPUs along t, clover Wilson Dirac operator, multigrid solver
 delta_params.grid_size = [1, 1, 1, 4]
@@ -31,7 +32,7 @@ delta_params.clover_coeff_r = 1.04243
 delta_params.multigrid = [[4, 4, 4, 4], [2, 2, 2, 2]]
 
 #Coulomb gauge fixing by overrelaxation, then one HYP step
-delta_params.gauge_fix_Nsteps = 20000
+delta_params.gauge_fix_Nsteps = 25000
 delta_params.gauge_fix_verbose_interval = 500
 delta_params.gauge_fix_relax_boost = 1.7
 delta_params.gauge_fix_tolerance = 1e-12
@@ -46,9 +47,8 @@ delta_params.hyp_alpha3 = 0.3
 delta_params.nt_chunk = 4
 
 #smearing shapes [rho_T, rho_z], quark boosts, interpolators
-
-delta_params.shape_list = [[5, 5/3], [5, 5], [3.25, 3.25], [3.25, 2]]
-delta_params.mom_frac_list = [0.75, 0.3] 
+delta_params.shape_list = [[4.5, 2.25], [1.5, 1.5]]
+delta_params.mom_frac_list = [0.8, 0.0]
 delta_params.mom_min = 0
 delta_params.mom_max = 6
 delta_params.k_list = [np.array([0, 0, frac * delta_params.mom_max]) for frac in delta_params.mom_frac_list]
@@ -76,17 +76,15 @@ delta_params.fb_index = {"pt2_forward": forward_index, "pt2_backward": backward_
 
 
 #======== cfgs, smearing operators and momentum tables (not in the class) ========
-cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 200 * delta_params.cfg_step, delta_params.cfg_step)    # stream e 204, 210, ..., 258
+cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 200 * delta_params.cfg_step, delta_params.cfg_step)    # stream e 204, 210, ..., 1398
 cfg_measure_spacing = 1
 src_phase_sign = -1
 n_spatial_src = len(delta_params.x_base) * len(delta_params.y_base) * len(delta_params.z_base)
-shape_names = ["rho5z5o3", "rho5", "rho3p25", "rho3p25z2"]
-#each shape smeared with one boost only: the rho_T = 5 shapes (large pz) with frac 0.75, the rho_T = 3.25 shapes (small pz) with frac 0.3
+shape_names = ["rho4p5z2p25", "rho1p5"]
+#each shape smeared with one boost only: [4.5, 2.25] (pz >= 2) with frac 0.8, [1.5, 1.5] (pz 0-1) unboosted
 smear_list = [
-    [(0, delta_params.shape_list[0]), (0, delta_params.mom_frac_list[0])],    # rho_T 5,    rho_z 5/3,  frac 0.75
-    [(1, delta_params.shape_list[1]), (0, delta_params.mom_frac_list[0])],    # rho_T 5,    rho_z 5,    frac 0.75
-    [(2, delta_params.shape_list[2]), (1, delta_params.mom_frac_list[1])],    # rho_T 3.25, rho_z 3.25, frac 0.3
-    [(3, delta_params.shape_list[3]), (1, delta_params.mom_frac_list[1])],    # rho_T 3.25, rho_z 2,    frac 0.3
+    [(0, delta_params.shape_list[0]), (0, delta_params.mom_frac_list[0])],    # rho_T 4.5, rho_z 2.25, frac 0.8 (k = 4.8)
+    [(1, delta_params.shape_list[1]), (1, delta_params.mom_frac_list[1])],    # rho_T 1.5, rho_z 1.5,  frac 0
 ]
 frac_str = [("%.3f" % frac).rstrip("0").rstrip(".").replace(".", "p") for frac in delta_params.mom_frac_list]
 smear_tag = f"coulomb_{'-'.join(shape_names)}_frac{'-'.join(frac_str)}_paired"
@@ -107,8 +105,8 @@ pf_asy_non0xi_index_list = [[delta_params.pf_plain_list.index(pf) for pf in row]
 
 #======== notes written into the .h5 attributes ========
 smearing_note = ("boosted Gaussian in Coulomb gauge, no gauge links: K(d) = exp(-(dx^2+dy^2)/rho_T^2 - dz^2/rho_z^2) exp(+i 2pi/L k.d), d = x - y, "
-                 "Gaussian part normalized to sum 1; the same K at source and sink. Each shape is used with one boost only (smear_list): "
-                 "[rho_T, rho_z] = [5, 5/3] and [5, 5] with frac 0.75 (k = 4.5), [3.25, 3.25] and [3.25, 2] with frac 0.3 (k = 1.8); "
+                 "Gaussian part normalized to sum 1; source and sink smearings each run over smear_list. Each shape is used with one boost only: "
+                 "[rho_T, rho_z] = [4.5, 2.25] with frac 0.8 (k = 4.8) and [1.5, 1.5] with frac 0 (k = 0), i.e. shape i with frac i; "
                  "the other (shape, frac) entries of the arrays are not computed and stay zero")
 gauge_fix_note = (f"Coulomb gauge fixing of the unsmeared links by overrelaxation, fixingOVR(gauge_dir={delta_params.gauge_fix_dir}, "
                   f"Nsteps={delta_params.gauge_fix_Nsteps}, verbose_interval={delta_params.gauge_fix_verbose_interval}, "
@@ -128,6 +126,6 @@ transfer_note = ("P_f = P_i + q (physical momenta, equal to the labels): source 
 
 
 #======== path definitions ========
-current_dir = "/projects/biqz/sliu54/2pt_production/streame_test"
+current_dir = "/projects/biqz/sliu54/2pt_production/final_production_3072src_200cfg"
 quda_resource_path = "/u/sliu54/QUDA_resources/.cache/quda"
 gauge_file_prefix = "/work/hdd/biqz/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     # stream e, copied from Frontier with Globus
