@@ -3,6 +3,9 @@
 *.npy
 *.npz
 
+#new codes
+ball_sum/
+
 # plots and fit outputs
 *.png
 *.pdf
