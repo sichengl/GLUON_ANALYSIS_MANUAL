@@ -1,22 +1,24 @@
 # New smearing kernels: Fermilab test
 
-Tests the single-quark kernels of `coulomb_smearing_kernels.py` (the note `pion_smearing_kernels.pdf`, Secs. 1-7) in the pion two-point function.
+Tests the single-quark kernels of `coulomb_smearing_kernels.py` (the note `pion_smearing_kernels.pdf`, Secs. 1-7) in the pion two-point
+function (the first test, pion only), now in the Model M scan for the pion and the proton.
 The first goal is to check that they work. The second is to see whether any of them gives a better signal than the reference Gaussian
 G_ref = [rho_T, rho_z, mom_frac] = [4.5, 2.25, 0.8].
 
 | file | what it is |
 |---|---|
 | `coulomb_smearing_kernels.py` | the kernel package (drop-in for `coulomb_smearing.py`, plus the new kernels) |
-| `new_kernels_2pt_setup_fermilab.py` | setup: lattice, cfgs, sources, and the 14 operators (`operator_list`) |
+| `new_kernels_2pt_setup_fermilab.py` | setup: lattice, cfgs, sources, and the operators: `operator_list` is the 13-operator Model M scan; the 14 of the first test are `test1_operator_list` |
 | `new_kernels_tools.py` | `build_kernel`, `kernel_moments`, and the GPU checks run by the job before any inversion |
-| `2pt_coulomb_new_kernels_32srcs_fermilab.py` | the job: the smearing-tuning job with kernels instead of `[rho_T, rho_z, mom_frac]`, pion only |
-| `2pt_coulomb_new_kernels_32srcs_fermilab.sh` | sbatch, one cfg per array task |
-| `fermilab_package_new_kernels.py` | packs the per-cfg files into one pion file (run on Fermilab) |
-| `quick_look_new_kernels.py` | local analysis: R, noise, pull, and imag against G_ref, plus the note's controlled pairs (table + pdf) |
+| `2pt_coulomb_new_kernels_32srcs_fermilab.py` | the job: the smearing-tuning job with kernels instead of `[rho_T, rho_z, mom_frac]`, pion and proton |
+| `2pt_coulomb_new_kernels_32srcs_fermilab.sh` | sbatch: one cfg per array task by default, N_CFG cfgs per task with `--export=ALL,N_CFG=<n>` |
+| `fermilab_package_new_kernels.py` | packs the per-cfg files into one pion and one proton file (run on Fermilab) |
+| `quick_look_new_kernels.py` | local analysis: R, noise, pull, and imag against G_ref on single gamma pairs, plus the note's controlled pairs |
+| `gevp_look_new_kernels.py` | local analysis: E_eff of the per-operator 3x3 gamma GEVP-reconstructed 2pt, R and noise against G_ref, the Model M scan curves |
 | `kernel_radii.py` | prints the rms radii and momentum of every operator (CPU), after editing `operator_list` |
 | `test_coulomb_smearing_kernels.py` | CPU unit tests of the package (numpy + scipy) |
 
-## The operators
+## The operators of the first test (`test1_operator_list`)
 
 | operator | what it tests |
 |---|---|
@@ -44,7 +46,7 @@ and along z 1.125. For them a change in signal is a change of shape, not of size
    Everything else comes from this folder.
 3. Submit the test, 4 cfgs: `mkdir -p logs && sbatch 2pt_coulomb_new_kernels_32srcs_fermilab.sh`
 4. Check the log of each task:
-   - 14 lines `KERNEL CHECK <name>: cpu-gpu ..., K(-d) - K(d)^* ...`, all far below 1e-12;
+   - one line `KERNEL CHECK <name>: cpu-gpu ..., K(-d) - K(d)^* ...` per operator (14 in the first test, 13 in the Model M scan), all far below 1e-12;
    - for G_ref and G_rz1.5, `new source and sink vs coulomb_boosted_source / sink at +-k`, also far below 1e-12;
    - the run then proceeds as the smearing tuning does.
 5. Pack on Fermilab: `python3 fermilab_package_new_kernels.py`. Copy the packed file home and run:
@@ -64,6 +66,44 @@ and along z 1.125. For them a change in signal is a change of shape, not of size
 
 The 4-cfg test checks the plumbing. The pion was nearly insensitive to the smearing in the first Delta analysis, so expect differences of a
 few percent at most, and judge the signal on the larger run.
+
+## Model M scan (current `operator_list`, `operator_tag = "model_M_scan1"`): pion and proton, GEVP analysis
+
+The first test (`test1_operator_list`, kept in the setup) found two things about Model M, the transverse-dependent mean boost:
+- M_plus (a larger boost near the profile center) has a better overlap than G_ref but more noise.
+- M_minus is the reverse.
+
+The scan maps that trade-off with 13 operators: G_ref, plus Model M at several strengths and three correlation lengths R_c.
+- **Strength** is the spread of the local boost over the profile, in units of the test's M_plus. It is -1, -0.5, +0.5, +1, +1.5 and +2
+  at R_c = 3.18, and -1, +1 and +2 at R_c = 2.25 and 4.5.
+- At equal spread every R_c is equally far from G_ref, so R_c only changes where across the profile the boost moves.
+- All operators keep G_ref's envelope (the same size) and its mean boost of 4.8.
+
+Both the pion and the proton are saved, with all three gammas (G5, G5G4, G3G5) at sink and source. The proton uses the kernel K for all three
+quarks, with the contraction of the smearing tuning.
+
+Run all 40 cfgs in one job. That is about 36 min per cfg, so about 24 h; ask for 27 h for margin:
+
+    sbatch --array=0 --time=27:00:00 --export=ALL,N_CFG=40 2pt_coulomb_new_kernels_32srcs_fermilab.sh
+
+If the job runs out of time, resubmit the same command: finished cfgs and t_src are skipped. If lq2_gpu does not allow 27 h, run two
+tasks of 20 cfgs instead (the same folder of results):
+
+    sbatch --array=0,20 --time=14:00:00 --export=ALL,N_CFG=20 2pt_coulomb_new_kernels_32srcs_fermilab.sh
+`fermilab_package_new_kernels.py` writes one pion and one proton file, with the proton projected to positive parity.
+
+Analysis: `gevp_look_new_kernels.py <packed file>`, for the pion or the proton file. It follows
+`local_analysis/build_local_GEVP_pion.ipynb`:
+- for each operator, a 3x3 gamma GEVP on each half (forward, backward), with t0 2 and the ground-state vector at t_ref 3;
+- the reconstructed 2pt, v0^dag C v0;
+- its E_eff, with a jackknife over cfgs.
+
+It writes:
+- R and noise against G_ref on the reconstructed 2pt;
+- a summary page of R and noise against the Model M strength, one line per R_c;
+- the E_eff pages.
+
+`quick_look_new_kernels.py` gives the same comparison on single diagonal gamma pairs.
 
 ## Reading the result
 

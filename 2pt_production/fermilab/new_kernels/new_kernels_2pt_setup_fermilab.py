@@ -1,5 +1,6 @@
-#Fermilab test of the new single-quark smearing kernels of coulomb_smearing_kernels.py (the note pion_smearing_kernels.pdf, Secs. 1-7):
-#14 operators, each one a kernel at source and sink (diagonal correlators only), pion only, G5, G5G4 and G3G5 at sink and source (3 x 3),
+#Fermilab runs of the new single-quark smearing kernels of coulomb_smearing_kernels.py (the note pion_smearing_kernels.pdf, Secs. 1-7).
+#Current run: the Model M scan (scan1_operator_list, 13 operators); the first test (test1_operator_list, 14 operators) is kept below.
+#Each operator is a kernel at source and sink (diagonal correlators only), pion and proton, G5, G5G4 and G3G5 at sink and source (3 x 3),
 #q = 0 at the 99 sink momenta of pf_plain_list. 32 sources per cfg (4 t_src x 2 x x 2 y x 2 z) on the 40 stream-d cfgs 204, 234, ..., 1374:
 #the same cfgs and sources as the Fermilab smearing tuning (smear_tuning/smear_tune_2pt_setup_fermilab.py, smear_tag coulomb_tune1), whose
 #operator [4.5, 2.25, 0.8] is the reference G_ref here, so G_ref can be checked against that run cfg by cfg (quick_look_new_kernels.py --tune1).
@@ -83,8 +84,8 @@ k0 = frac_ref * fermilab_params.mom_max           # 4.8, the same number as k of
 R_c = 3.18                                        # rho_T_ref / sqrt(2)
 P_z = fermilab_params.mom_max                     # pion momentum of the x-parametrized kernels (Eq. (28)): k = x P_z
 
-operator_tag = "new_kernels_test1"
-operator_list = [
+#first run (job 1345262, 4 cfgs, operator_tag "new_kernels_test1"): one point of every model; kept here as the record of that run
+test1_operator_list = [
     #name             function of coulomb_smearing_kernels  keyword arguments (the job adds xp = cupy and spatial_size)
     ["G_ref",         "gaussian_kernel",                    {"k0": k0, "rho_T": rho_T_ref, "rho_z": rho_z_ref}],                          # Eq. (6), the reference
     ["G_rz1.5",       "gaussian_kernel",                    {"k0": k0, "rho_T": rho_T_ref, "rho_z": 4.5 / 3}],                            # control of two_momentum: its rms_z; also
@@ -112,6 +113,37 @@ operator_list = [
     ["polynomial",    "polynomial_kernel",                  {"k0": k0, "rho_T": 3.112, "rho_z": 1.556, "c_T": 1.0, "c_z": 1.0}],          # Eq. (38): no node (factor >= 0.25), fatter tail,
                                                                                                                                           #   rms matched
 ]
+
+#Model M scan (the user's original idea): a larger boost near the center of the profile, mu(s) = k0 + delta_mu [f(s) - f_bar], f(s) =
+#exp(-s / (2 R_c^2)), on the envelope of G_ref and with the transverse mean of mu kept at k0 = 4.8. The test found M_plus (delta_mu +3.6,
+#R_c 3.18) with a better overlap but more noise and M_minus (-3.6) the reverse; this scan maps that trade-off.
+#Strength is the spread of the local boost over the profile, sigma_mu = delta_mu std(f) under the weight exp(-2 s / rho_T^2), in units of
+#the test's M_plus (sigma_mu = 0.849): delta_mu = (spread x 0.849) / std(f), std(f) = 0.2887, 0.2358, 0.1633 at R_c = 2.25, 3.18, 4.5.
+#At equal spread every R_c is equally far from G_ref (1 - overlap^2 = 0.009, 0.034, 0.074, 0.12 at spread 0.5, 1, 1.5, 2), so R_c changes
+#only where across the profile the boost moves: a short R_c moves it near the center, a long R_c across the whole profile.
+#Name M<spread>_Rc<R_c>; M_plus and M_minus are the test's two points (spread +-1 at R_c 3.18).
+def model_M(name, delta_mu, R_c):
+    return [name, "model_M_kernel", {"k0": k0, "rho_T": rho_T_ref, "rho_z": rho_z_ref, "delta_mu": delta_mu, "R_c": R_c}]
+
+scan1_operator_list = [
+    ["G_ref",          "gaussian_kernel",   {"k0": k0, "rho_T": rho_T_ref, "rho_z": rho_z_ref}],      # spread 0
+    model_M("M_minus",      -3.60,  3.18),          # spread -1      the strength scan at R_c 3.18: center boost (d_perp 0) and at d_perp 6
+    model_M("M-0.5_Rc3.18", -1.80,  3.18),          # spread -0.5    3.60 / 6.59,  4.20 / 5.70
+    model_M("M+0.5_Rc3.18", +1.80,  3.18),          # spread +0.5    5.40 / 3.90
+    model_M("M_plus",       +3.60,  3.18),          # spread +1      6.00 / 3.01
+    model_M("M+1.5_Rc3.18", +5.40,  3.18),          # spread +1.5    6.60 / 2.11
+    model_M("M+2_Rc3.18",   +7.20,  3.18),          # spread +2      7.20 / 1.22
+    model_M("M-1_Rc2.25",   -2.94,  2.25),          # short R_c: the boost moves near the center      3.33 / 6.19
+    model_M("M+1_Rc2.25",   +2.94,  2.25),          #                                                 6.27 / 3.41
+    model_M("M+2_Rc2.25",   +5.88,  2.25),          #                                                 7.74 / 2.03
+    model_M("M-1_Rc4.5",    -5.20,  4.50),          # long R_c: the boost moves across the whole profile  3.76 / 6.82
+    model_M("M+1_Rc4.5",    +5.20,  4.50),          #                                                     5.84 / 2.78
+    model_M("M+2_Rc4.5",   +10.40,  4.50),          #                                                     6.88 / 0.76
+]
+
+#the run: a new operator_tag for a new list (the job refuses to write another list into the folder of an old one)
+operator_tag = "model_M_scan1"
+operator_list = scan1_operator_list
 assert len(operator_list) <= 20, "at most 20 operators: the time limit of the sbatch script assumes it"
 assert len({row[0] for row in operator_list}) == len(operator_list), "operator_list has a repeated name"
 assert operator_list[0][0] == "G_ref", "the first operator is the reference: quick_look_new_kernels.py compares the others with it"

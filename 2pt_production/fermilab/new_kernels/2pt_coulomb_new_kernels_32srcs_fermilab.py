@@ -13,17 +13,18 @@ from cupy.cuda.runtime import deviceSynchronize
 from tqdm import tqdm
 from coulomb_smearing_kernels import coulomb_kernel_source, coulomb_kernel_sink, coulomb_gauge_theta
 from new_kernels_tools import build_kernel, check_kernels
-from pt2_comm_tools import release_cupy_cache        # tools/pt2_comm_tools.py
+from pt2_comm_tools import make_eps, release_cupy_cache        # tools/pt2_comm_tools.py
 from new_kernels_2pt_setup_fermilab import * # fermilab_params (the TwoPtParams of this run), cfg list, operator_list, momenta, notes, paths
 
-#Test of the new single-quark smearing kernels: every operator of operator_list (a kernel K of coulomb_smearing_kernels.py) is used at source
+#Runs of the new single-quark smearing kernels: every operator of operator_list (a kernel K of coulomb_smearing_kernels.py) is used at source
 #and sink, and only these diagonal correlators are computed, so a source costs one pair of inversions and one contraction per operator.
-#Pion only, G5, G5G4 and G3G5 at sink and source (3 x 3), q = 0 at the 99 sink momenta of pf_plain_list, the spatial sources of each t_src
-#averaged. The job is 2pt_coulomb_boosted_smear_tune_32srcs_fermilab.py (smearing tuning) with three changes:
+#Pion and proton, G5, G5G4 and G3G5 at sink and source (3 x 3), q = 0 at the 99 sink momenta of pf_plain_list, the spatial sources of each
+#t_src averaged. The job is 2pt_coulomb_boosted_smear_tune_32srcs_fermilab.py (smearing tuning) with two changes:
 #  1. the boosted Gaussian [rho_T, rho_z, mom_frac] becomes a kernel K: prop2 (quark) is smeared with K and prop1 (antiquark) with K^*, which
-#     is the -k kernel (for gaussian_kernel exactly coulomb_boosted_source(+k) and (-k) of the tuning);
-#  2. before the first cfg the kernels are checked on the GPUs (new_kernels_tools.check_kernels): a failed check stops the job before any inversion;
-#  3. pion only, and a cfg whose Coulomb gauge fixing does not converge is skipped instead of stopping the job (as in the Delta tuning).
+#     is the -k kernel (for gaussian_kernel exactly coulomb_boosted_source(+k) and (-k) of the tuning); the proton uses prop2 for all three quarks;
+#  2. before the first cfg the kernels are checked on the GPUs (new_kernels_tools.check_kernels): a failed check stops the job before any inversion,
+#     and a cfg whose Coulomb gauge fixing does not converge is skipped instead of stopping the job (as in the Delta tuning).
+#The pion and proton contractions, the antiperiodic sign and the saved datasets are those of the smearing tuning.
 
 
 parser = argparse.ArgumentParser()
@@ -62,22 +63,26 @@ deviceSynchronize()
 core.getLogger().info(f"KERNELS BUILT AND CHECKED: {perf_counter() - s} secs")
 
 
-#======== gamma matrices, containers (cupy arrays: after core.init) ========
+#======== gamma matrices, epsilon tensor, containers (cupy arrays: after core.init) ========
 gamma_list, gamma_names = fermilab_params.make_gamma_list()                   # the interpolators Gamma(n), n in fermilab_params.gamma_ids, and their names
-G4, G5 = gamma.gamma(8), gamma.gamma(15)                              # g4 and g5, in PyQUDA's DeGrand-Rossi convention
+G4, G5, charge = gamma.gamma(8), gamma.gamma(15), gamma.gamma(10)     # g4, g5 and C = g2 g4, in PyQUDA's DeGrand-Rossi convention
+parity_p = (gamma.gamma(0) + gamma.gamma(8)) / 2                      # (1 + g4) / 2
+parity_m = (gamma.gamma(0) - gamma.gamma(8)) / 2                      # (1 - g4) / 2
+eps_color = make_eps()
 n_op, n_gamma, n_pf = len(operator_list), len(gamma_list), len(fermilab_params.pf_plain_list)
-#one t_src at a time: (operator, gamma_sink, gamma_source, p_f, local time)
+#one t_src at a time: (operator, gamma_sink, gamma_source, [dirac_sink, dirac_source,] p_f, local time)
 corr_dic = {
-    "pion": cp.zeros((n_op, n_gamma, n_gamma, n_pf, latt_info.Lt), "<c16"),
+    "pion":   cp.zeros((n_op, n_gamma, n_gamma,       n_pf, latt_info.Lt), "<c16"),
+    "proton": cp.zeros((n_op, n_gamma, n_gamma, 4, 4, n_pf, latt_info.Lt), "<c16"),
 }
-pion_plain = corr_dic["pion"]
+pion_plain, proton_plain_dirac = corr_dic["pion"], corr_dic["proton"]
 #forward and backward 2pt of one t_src on the host of rank 0, tsep_max time slices instead of GLt
 fb_dic = {pt2: {particle: np.zeros(corr.shape[:-1] + (fermilab_params.tsep_max,), "<c16") for particle, corr in corr_dic.items()}
           for pt2 in fermilab_params.fb_index} if latt_info.mpi_rank == 0 else None
 mom_phase = phase.MomentumPhase(latt_info)
 
 
-#======== output: one pion file per cfg ========
+#======== output: one pion and one proton file per cfg ========
 gevp_dir = f"{current_dir}/{operator_tag}_{len(fermilab_params.t_base) * n_spatial_src}src_phyp_fb_tsep{fermilab_params.tsep_max}"
 operator_json = json.dumps(operator_list)            # the function and parameters of every operator, in the order of the operator axis
 
@@ -110,7 +115,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
     cfg_dir = f"{gevp_dir}/cfg{cfg}"
     if all_on_disk([h5_name(cfg_dir, particle, cfg) for particle in corr_dic]):
-        core.getLogger().info(f"SKIP CFG #{cfg}: its .h5 file is already saved")
+        core.getLogger().info(f"SKIP CFG #{cfg}: its .h5 files are already saved")
         continue
     if latt_info.mpi_rank == 0:
         os.makedirs(f"{cfg_dir}/parts", exist_ok=True)      # also creates cfg_dir
@@ -211,10 +216,18 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
                         for i_gamma_sink, gamma_sink in enumerate(gamma_list):
 
+                            diquark = contract("def,gh,wtzyxhjeb,wtzyxgida->wtzyxijabf",eps_color, charge @ gamma_sink, prop2.data, prop2.data)
+
                             # pion: colors and sink gamma summed at each site, then sites summed with the phases of the 99 momenta
                             #       source spins l,i left open for the source gamma
                             pion_open_plain = contract("pwtzyx,wtzyxjiba,jk,wtzyxklba->lipt",
                                                        pf_phases_plain, prop1.data.conj(), G5 @ gamma_sink, prop2.data)          # (4,4,99,Lt_local)
+
+                            # proton: colors and epsilon summed at each site, both Wick terms (step 1), then sites summed with the phases (step 2)
+                            #         source spins i,j (for C Gamma_source below) and k, sink spin l left open
+                            proton_site  = contract("abc,wtzyxijabf,wtzyxlkfc->wtzyxijlk", eps_color, diquark, prop2.data)    # step 1, first term, 256 per site
+                            proton_site -= contract("abc,wtzyxkjcbf,wtzyxlifa->wtzyxijlk", eps_color, diquark, prop2.data)   # step 1, second term
+                            proton_open_plain = contract("pwtzyx,wtzyxijlk->ijlkpt", pf_phases_plain, proton_site)           # step 2, (4,4,4,4,99,Lt_local)
 
                             for i_gamma_source, gamma_source in enumerate(gamma_list):
 
@@ -223,6 +236,9 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                                 #plain mean over the spatial sources of this t_src
                                 pion_plain[i_op, i_gamma_sink, i_gamma_source] += contract(
                                 "li,lipt->pt", gamma_source_bar @ G5, pion_open_plain) / n_spatial_src                       # (99, Lt_local)
+                                proton_plain_dirac[i_op, i_gamma_sink, i_gamma_source] += contract(
+                                "ij,ijlkpt->lkpt", charge @ gamma_source, proton_open_plain) / n_spatial_src                 # (4, 4, 99, Lt_local)
+                            del diquark, proton_site                    # the next sink gamma allocates its own
 
                         del prop1, prop2                                # the next operator allocates its own: free these before its inversion
                         deviceSynchronize()
@@ -240,8 +256,10 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
         for particle, corr in corr_dic.items():
             corr_slab = core.gatherLattice(corr.get(), [corr.ndim - 1, -1, -1, -1])                          # ALL ranks; time is the last axis
             if latt_info.mpi_rank == 0:
-                #ROLL so that time index 0 is t_src:  rolled[..., tau] = C[..., (t_src + tau) % 96]  (the pion needs no antiperiodic sign)
+                #ROLL so that time index 0 is t_src:  rolled[..., tau] = C[..., (t_src + tau) % 96]
                 corr_slab = np.roll(corr_slab, -t0, axis=-1)
+                if particle == "proton":
+                    corr_slab[..., fermilab_params.GLt - t0:] *= -1                                  # antiperiodic sign for the times that wrapped around
                 #FORWARD AND BACKWARD: pt2_forward[..., tsep] = C(t_src + tsep), pt2_backward[..., tsep] = C(t_src - tsep), tsep = 0 .. tsep_max-1
                 for pt2, t_index in fermilab_params.fb_index.items():
                     fb_dic[pt2][particle][...] = corr_slab[..., t_index]
@@ -252,18 +270,21 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
             del corr_slab
         core.getLogger().info(f"SAVE T_SRC {t0}: {perf_counter() - s} secs")
 
-    #MERGE: rank 0 builds the .h5 file from the parts, then deletes the parts. The file has two datasets, pt2_forward and pt2_backward.
-    #The file is written as .tmp and renamed when complete, so a job killed while merging leaves no half-filled file under the final name.
+    #MERGE: rank 0 builds the .h5 files from the parts, then deletes the parts. Each file has two datasets, pt2_forward and pt2_backward.
+    #Files are written as .tmp and renamed when complete, so a job killed while merging leaves no half-filled file under the final name.
     deviceSynchronize()
     saving_started = perf_counter()
     for particle in corr_dic:
         filename = h5_name(cfg_dir, particle, cfg)
-        dim_head = ["operator","gamma_sink","gamma_source"]
+        dim_head = ["operator","gamma_sink","gamma_source"] + (["dirac_sink","dirac_source"] if particle == "proton" else [])
         dim_tail = ["t_src_list","momentum_list","tsep"]
 
         if latt_info.mpi_rank == 0:
             with h5py.File(f"{filename}.tmp", "w") as f:
                 f.create_dataset("momentum_list", data=np.array(fermilab_params.pf_plain_list))           # p_f of every entry
+                if particle == "proton":
+                    f.create_dataset("parity_p", data=cp.asnumpy(parity_p))      # (1+g4)/2, for pt2_forward
+                    f.create_dataset("parity_m", data=cp.asnumpy(parity_m))      # (1-g4)/2, for pt2_backward, enters with a minus sign
                 f.create_dataset("operator_names", data=np.array(operator_names, dtype=h5py.string_dtype()))
                 f.create_dataset("kernel_moments", data=np.array(kernel_moments))                         # rms_T, rms_z, source radius, mean_k, width_k
                 f.attrs["operator_list_json"] = operator_json                                             # [name, function, parameters] of every operator
@@ -291,17 +312,26 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     dset.attrs["t_src_list"] = t_src[i_cfg]
                     dset.attrs["time_index"] = time_index_note
                     dset.attrs["dim_time"] = fermilab_params.fb_index[pt2]                       # time after the roll, (t - t_src) % Lt, of every tsep
-                    dset.attrs["time_reflection"] = "pt2_backward[..., tsep] = s_a s_b pt2_forward[..., tsep] for tsep >= 1: " + time_reflection_note
-                    dset.attrs["propagator"] = "prop1 smeared with K^* (boost -k) and prop2 with K (boost +k), at source and sink (quarks boosted toward physical +z)"
+                    if particle == "pion":
+                        dset.attrs["time_reflection"] = "pt2_backward[..., tsep] = s_a s_b pt2_forward[..., tsep] for tsep >= 1: " + time_reflection_note
+                        dset.attrs["propagator"] = "prop1 smeared with K^* (boost -k) and prop2 with K (boost +k), at source and sink (quarks boosted toward physical +z)"
+                    else:
+                        dset.attrs["diquark"] = "C Gamma_sink at the sink, C Gamma_source at the source (equal to -Gamma_bar_source C for G5 and G5G4, an overall sign)"
+                        dset.attrs["how_to_project"] = ("NOT projected. Positive parity: C_forward(tsep) = sum_kl parity_p[k,l] M[l,k] with M = pt2_forward, "
+                                                        "C_backward(tsep) = -sum_kl parity_m[k,l] M[l,k] with M = pt2_backward, l = dirac_sink, k = dirac_source. "
+                                                        "Antiperiodic sign already applied. pt2_backward[..., 0] is the source slice projected with parity_m: do not use it. "
+                                                        "The time reflection holds for the projected correlators, not for M: C_backward(tsep) = s_a s_b C_forward(tsep) "
+                                                        "for tsep >= 1: " + time_reflection_note)
+                        dset.attrs["propagator"] = "prop2 (kernel K, boost +k) for all three quark lines; the same kernel at source and sink"
 
             with h5py.File(f"{filename}.tmp", "a") as f:
                 for pt2 in fermilab_params.fb_index:
-                    for t_idx in range(len(t_src[i_cfg])):                   # the slabs saved during the run, already rolled and cut to tsep_max
+                    for t_idx in range(len(t_src[i_cfg])):                   # the slabs saved during the run, already rolled, signed and cut to tsep_max
                         f[pt2][..., t_idx, :, :] = np.load(part_name(cfg_dir, particle, cfg, t_idx, pt2))
             os.replace(f"{filename}.tmp", filename)
 
     if latt_info.mpi_rank == 0:
-        shutil.rmtree(f"{cfg_dir}/parts")                   # only after the .h5 file of this cfg is complete
+        shutil.rmtree(f"{cfg_dir}/parts")                   # only after every .h5 file of this cfg is complete
     core.getLogger().info(f"SAVING SECTION:{perf_counter()-saving_started} secs")
     free, total = cp.cuda.runtime.memGetInfo()
     pool = cp.get_default_memory_pool()

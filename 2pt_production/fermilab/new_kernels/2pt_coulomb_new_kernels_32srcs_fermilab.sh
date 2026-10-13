@@ -12,14 +12,14 @@
 #SBATCH -o ./logs/pt2_new_kernels_%A_%a.out
 #SBATCH -e ./logs/pt2_new_kernels_%A_%a.err
 
-# Test of the new smearing kernels: the 14 operators of operator_list in the setup, each one at source and sink (diagonal correlators only),
-# 32 sources per cfg (4t x 2x x 2y x 2z), one stream-d cfg per array task, pion only, q = 0 at the 99 sink momenta, 4 GPUs, grid [1,1,1,4].
-# Submit from this folder (2pt_production/fermilab/new_kernels).
-# Test: --array=0-3 measures the first 4 of the 40 cfgs 204, 234, ..., 1374. More statistics: sbatch --array=4-39 (the same folder of
-# results keeps growing; the job refuses to write into it if operator_list was changed, so a new list needs a new operator_tag).
+# New smearing kernels: the operators of operator_list in the setup (now the Model M scan, 13 operators), each one at source and sink
+# (diagonal correlators only), 32 sources per cfg (4t x 2x x 2y x 2z), pion and proton, q = 0 at the 99 sink momenta, 4 GPUs, grid [1,1,1,4].
+# Submit from this folder. By default one stream-d cfg per array task: --array=0-3 measures the first 4 of the 40 cfgs 204, 234, ..., 1374.
+# All 40 in one job: see N_CFG below. The results of an operator_tag go to one folder; the job refuses to write another list into it.
 # Before the first cfg the job checks every kernel on the GPUs (log lines KERNEL CHECK): a failed check stops it within minutes.
-# Time: the smearing tuning budgets at most 2.5 h for 30 smearings x 32 sources per cfg (2pt_coulomb_boosted_smear_tune_32srcs_fermilab.sh),
-# so 14 operators take at most about 1.2 h per cfg, plus the gauge fixing; 4 h leaves room.
+# Time, measured (job 1345262, cfg 294, pion only): 3.9 s per source and operator (inversion pair 3.7 s, pion contraction 0.18 s) plus about
+# 3 min of gauge fixing per cfg. The proton adds its contraction, about 1 s per source and operator on the Delta A100s (pion + proton 1.06 s):
+# about 4.7 s, so about 36 min per cfg for the 13 operators of the Model M scan and about 24 h for 40 cfgs.
 # Every task runs in its own folder testruns/new_kernels_<jobid>_<task>, on copies of the python files; the folder also keeps this sbatch script.
 # A task killed at the time limit can be resubmitted (sbatch --array=<task> ...): the per-t_src parts already on disk are skipped.
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
@@ -61,17 +61,26 @@ export QUDA_ENABLE_P2P=3
 export QUDA_ENABLE_DEVICE_MEMORY_POOL=0
 mkdir -p $QUDA_RESOURCE_PATH
 
-# run parameters: array task i measures cfg_list[i] of the setup (one task alone: sbatch --array=3 ...)
+# run parameters: array task i measures N_CFG cfgs from cfg_list[i] of the setup (one task alone: sbatch --array=3 ...).
+# N_CFG is 1 unless set at submission. All 40 cfgs in one job (one after another, about 36 min each with the proton; the cfgs already on disk are skipped):
+#     sbatch --array=0 --time=27:00:00 --export=ALL,N_CFG=40 2pt_coulomb_new_kernels_32srcs_fermilab.sh    (about 24 h: 27 h leaves margin)
+# or, if the partition allows less, two tasks of 20 cfgs: sbatch --array=0,20 --time=14:00:00 --export=ALL,N_CFG=20 ...
 ICFG=${SLURM_ARRAY_TASK_ID:-0}
+N_CFG=${N_CFG:-1}
 cd "$RUNDIR"
 export PYTHONPATH=$RUNDIR:$PYTHONPATH
-# fail fast if this task's gauge file is not there (the setup builds the name from gauge_file_prefix and cfg_list)
-GAUGE=$(python3 -c "from ${SETUP%.py} import cfg_list, gauge_file_prefix; print(f'{gauge_file_prefix}.{cfg_list[$ICFG]}')")
-[ -f "$GAUGE" ] || { echo "missing gauge file $GAUGE"; exit 1; }
-echo "task $ICFG: gauge file $GAUGE"
+# fail fast if a gauge file of this task's cfgs is not there (the setup builds the names from gauge_file_prefix and cfg_list)
+python3 -c "
+import os
+from ${SETUP%.py} import cfg_list, cfg_measure_spacing, gauge_file_prefix
+cfgs = cfg_list[$ICFG::cfg_measure_spacing][:$N_CFG]
+missing = [int(cfg) for cfg in cfgs if not os.path.exists(f'{gauge_file_prefix}.{cfg}')]
+print(f'task $ICFG: cfgs {[int(cfg) for cfg in cfgs]}, missing gauge files: {missing}')
+raise SystemExit(1 if missing else 0)
+" || exit 1
 # beta_kernel needs scipy: fail fast if the environment does not have it
 python3 -c "import scipy" || { echo "scipy is missing in the pyquda environment (beta_kernel needs it)"; exit 1; }
 nvidia-smi -L
 # this OpenMPI has no Slurm PMI support: launch with mpirun, not srun
-mpirun -np 4 python3 -m mpi4py "$SCRIPT" --icfg $ICFG --n 1     # -m mpi4py: an exception on any rank aborts all ranks
+mpirun -np 4 python3 -m mpi4py "$SCRIPT" --icfg $ICFG --n $N_CFG     # -m mpi4py: an exception on any rank aborts all ranks
 date
