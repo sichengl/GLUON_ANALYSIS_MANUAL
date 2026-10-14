@@ -183,7 +183,11 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         s = perf_counter()
                         core.getLogger().info(f"SRC SMEARING: {shape_names[i_src_shape]} rho_T {rho_T_src} rho_z {rho_z_src}, frac {delta_params.mom_frac_list[i_src_frac]}")
                         prop1_inv = coulomb_boosted_source(latt_info, -k_src, src_pos, rho_T_src, rho_z_src)
-                        prop2_inv = coulomb_boosted_source(latt_info, +k_src, src_pos, rho_T_src, rho_z_src)
+                        if np.any(k_src):
+                            prop2_inv = coulomb_boosted_source(latt_info, +k_src, src_pos, rho_T_src, rho_z_src)
+                        else:
+                            prop2_inv = prop1_inv
+                        
                         deviceSynchronize()
                         core.getLogger().info(f"SOURCE SMEAR: {perf_counter() - s} secs")
 
@@ -193,7 +197,10 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         s = perf_counter()
                         core.getLogger().info(f"SOLVING DIRAC EQ")
                         prop1_inv = core.invertPropagator(dirac, prop1_inv, mrhs=delta_params.mrhs)
-                        prop2_inv = core.invertPropagator(dirac, prop2_inv, mrhs=delta_params.mrhs)
+                        if np.any(k_src):
+                            prop2_inv = core.invertPropagator(dirac, prop2_inv, mrhs=delta_params.mrhs)
+                        else:
+                            prop2_inv = prop1_inv
                         core.getLogger().info(f"INVERT 2 propagagors: {perf_counter() - s} secs")
                         log_gpu_memory("AFTER INVERT")
 
