@@ -26,3 +26,5 @@ bare_matrix_element_*/
 __pycache__/
 
 pyquda_source/
+/FF_production/independent
+/FF_production/independent

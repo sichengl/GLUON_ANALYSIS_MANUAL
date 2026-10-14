@@ -9,7 +9,9 @@
 #  z = +w : old[a, b, w] = phase(x + w z) / phase(x) * new[PERM[b], PERM[a], +w]            (x -> x - w z in the site sum)
 #Deviations are max |old - new| over (a, b, q, t) divided by max |old| at the same w.
 #
-#usage: python FF_independent_vs_old.py --cfg 204 [--num_cfg 1 --cfg_step 6]     (same settings as FF_independent.py)
+#usage: python FF_independent_vs_old.py --cfg 204 [--num_cfg 1 --cfg_step 6 --hyp 0 1 5
+#           --gauge_file .../l3296f211b630m0074m037m440e.{cfg} --out_dir ... --resource_path ...]
+#       paths and HYP steps default to the values in FF_independent.py; Q_LIST and the HYP parameters always come from there
 
 #==========================
 #For direction, xyzt
@@ -90,17 +92,22 @@ def main():
     parser.add_argument("--cfg", type=int, required=True)
     parser.add_argument("--num_cfg", type=int, default=1)
     parser.add_argument("--cfg_step", type=int, default=6)
+    parser.add_argument("--gauge_file", default=new.GAUGE_FILE, help="path with {cfg}")
+    parser.add_argument("--out_dir", default=new.OUT_DIR)
+    parser.add_argument("--resource_path", default=new.QUDA_RESOURCE_PATH)
+    parser.add_argument("--hyp", type=int, nargs="+", default=new.HYP_LIST, help="HYP steps to measure at, ascending")
     args = parser.parse_args()
+    hyp_list = sorted(args.hyp)
 
-    core.init([1, 1, 1, 1], resource_path=new.QUDA_RESOURCE_PATH)
+    core.init([1, 1, 1, 1], resource_path=args.resource_path)
     log = core.getLogger()
-    os.makedirs(new.OUT_DIR, exist_ok=True)
+    os.makedirs(args.out_dir, exist_ok=True)
     i_neg = [Z_LIST.index(-w) for w in range(N_W)]
     i_pos = [Z_LIST.index(w) for w in range(N_W)]
 
     phase_eo = None
     for cfg in [args.cfg + args.cfg_step * i for i in range(args.num_cfg)]:
-        gauge_file = new.GAUGE_FILE.format(cfg=cfg)
+        gauge_file = args.gauge_file.format(cfg=cfg)
         gauge = io.readMILCGauge(gauge_file)
         latt_info = gauge.latt_info
         if phase_eo is None:
@@ -109,13 +116,13 @@ def main():
             Lz = phase_lex.shape[2]
             hop = xp.stack([phase_lex[:, 0, w % Lz, 0, 0] / phase_lex[:, 0, 0, 0, 0] for w in range(N_W)])   # phase(x+wz)/phase(x), (w, q)
 
-        dev_F = np.zeros(len(new.HYP_LIST))
-        dev_neg = np.zeros((len(new.HYP_LIST), N_W))
-        dev_pos = np.zeros((len(new.HYP_LIST), N_W))
-        t_old = np.zeros(len(new.HYP_LIST))
-        t_new = np.zeros(len(new.HYP_LIST))
+        dev_F = np.zeros(len(hyp_list))
+        dev_neg = np.zeros((len(hyp_list), N_W))
+        dev_pos = np.zeros((len(hyp_list), N_W))
+        t_old = np.zeros(len(hyp_list))
+        t_new = np.zeros(len(hyp_list))
         n_hyp_done = 0
-        for i_hyp, n_hyp in enumerate(new.HYP_LIST):
+        for i_hyp, n_hyp in enumerate(hyp_list):
             if n_hyp > n_hyp_done:
                 gauge.hypSmear(n_hyp - n_hyp_done, *new.HYP_ALPHA, new.HYP_DIR_IGNORE, True, False)
                 n_hyp_done = n_hyp
@@ -151,14 +158,14 @@ def main():
                 log.info(msg)
             del U, F, F_old, C_new, C, C_neg, C_pos
 
-        filename = f"{new.OUT_DIR}/FF_compare_old_new_hyp{new.HYP_LIST[0]}-{new.HYP_LIST[-1]}_w0-{N_W - 1}_cfg{cfg}.h5"
+        filename = f"{args.out_dir}/FF_compare_old_new_hyp{hyp_list[0]}-{hyp_list[-1]}_w0-{N_W - 1}_cfg{cfg}.h5"
         with h5py.File(filename, "w") as f:
             f.create_dataset("dev_F", data=dev_F).attrs["dim_spec"] = "hyp"
             f.create_dataset("dev_C_negative_z", data=dev_neg).attrs["dim_spec"] = "hyp, w"
             f.create_dataset("dev_C_positive_z", data=dev_pos).attrs["dim_spec"] = "hyp, w"
             f.create_dataset("time_old", data=t_old)
             f.create_dataset("time_new", data=t_new)
-            f.create_dataset("hyp_list", data=np.asarray(new.HYP_LIST, dtype=np.int64))
+            f.create_dataset("hyp_list", data=np.asarray(hyp_list, dtype=np.int64))
             f.create_dataset("q_list", data=np.asarray(new.Q_LIST, dtype=np.int64))
             f.attrs["deviation"] = "max_{a,b,q,t} |old - new| / max_{a,b,q,t} |old| at each w; F: max |dF| / max |F|"
             f.attrs["gauge_file"] = gauge_file

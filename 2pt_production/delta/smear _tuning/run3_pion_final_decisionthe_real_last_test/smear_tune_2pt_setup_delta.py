@@ -78,9 +78,9 @@ delta_params.n_cfg = 1
 #   4.5     2.25                            x    x    x
 #   5.0     2.5                             x    x    x
 #   6.0     3.0                             x    x    x
-smear_tag = "coulomb_run4_rhoz_scan_6op_32src_200cfg"
+smear_tag = "coulomb_run4_rhoz_scan_10op_32src_200cfg"
 #rho_z scan at rho_T 4.5, boost 0.8, for the pion at pz >= 2: rho_z 2.25 .. 3.5 in steps of 0.25; [4.5, 2.25, 0.8] is the run-3 pick and the reference
-smear_list = [[4.5, rho_z, 0.8] for rho_z in [2.25, 2.5, 2.75, 3.0, 3.25, 3.5]]
+smear_list = [[4.5, rho_z, 0.8] for rho_z in [2.25, 2.5, 2.75, 3.0, 3.25, 3.5,3.75,4.0,4.25,4.5 ]]
 assert len(smear_list) <= 30, "at most 30 smearings: the time limit of the sbatch script assumes it"
 assert len({tuple(row) for row in smear_list}) == len(smear_list), "smear_list has a repeated row"
 assert all(len(row) == 3 and row[0] > 0 and row[1] > 0 for row in smear_list), "every row is [rho_T > 0, rho_z > 0, mom_frac]"
@@ -113,6 +113,6 @@ time_index_note = (f"pt2_forward[..., tsep] = C(t_src + tsep), pt2_backward[...,
 
 
 #======== path definitions ========
-current_dir = "/projects/biqz/sliu54/2pt_production/coulomb_run4_rhoz_scan_6op_32src_200cfg"
+current_dir = "/projects/biqz/sliu54/2pt_production/coulomb_run4_rhoz_scan_10op_32src_200cfg"
 quda_resource_path = "/u/sliu54/QUDA_resources/.cache/quda"
 gauge_file_prefix = "/work/hdd/biqz/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     # stream e, copied from Frontier with Globus
