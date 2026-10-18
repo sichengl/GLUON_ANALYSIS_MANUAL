@@ -160,7 +160,7 @@ for pf in MOM_LIST:
         #save sdevs
         E_sdev_jk[i]     = gv.sdev(np.cumsum(fit_jk.p["dE"]))
         dE_sdev_jk[i] = gv.sdev(fit_jk.p["dE"])
-        C_jk[i]       = gv.sdev(fit_jk.p["c"])
+        C_sdev_jk[i]       = gv.sdev(fit_jk.p["c"])
 
         chi2dof_jk[i] = fit_jk.chi2 / fit_jk.dof
         Q_jk[i] = fit_jk.Q

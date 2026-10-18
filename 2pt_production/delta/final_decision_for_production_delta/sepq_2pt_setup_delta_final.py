@@ -126,6 +126,6 @@ transfer_note = ("P_f = P_i + q (physical momenta, equal to the labels): source 
 
 
 #======== path definitions ========
-current_dir = "/projects/biqz/sliu54/2pt_production/final_production_3072src_200cfg"
+current_dir = "/work/hdd/biqz/sliu54/2pt_production/final_production_3072src_200cfg"
 quda_resource_path = "/u/sliu54/QUDA_resources/.cache/quda"
 gauge_file_prefix = "/work/hdd/biqz/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     # stream e, copied from Frontier with Globus
