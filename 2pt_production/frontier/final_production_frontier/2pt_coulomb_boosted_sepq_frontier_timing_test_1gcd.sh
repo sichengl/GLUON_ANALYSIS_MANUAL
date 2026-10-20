@@ -2,15 +2,15 @@
 #SBATCH -A lgt132
 #SBATCH -p batch
 #SBATCH -q debug
-#SBATCH -t 00:20:00
+#SBATCH -t 01:00:00
 #SBATCH -N 1
 #SBATCH -J pt2_timing_1gcd
 #SBATCH -o ./logs/pt2_timing_1gcd_%j.out
 #SBATCH -e ./logs/pt2_timing_1gcd_%j.err
 
-# Timing test of the 1-GCD version on one node, 20 minutes in the debug QOS (1 debug job at a time, at most 2 hours): its script on cfg 204 from
+# Timing test of the 1-GCD version on one node, 1 hour in the debug QOS (1 debug job at a time, at most 2 hours): its script on cfg 204 from
 # t_src 0, five runs side by side, each on one GCD with a different mrhs. Each run is its own srun, so a run that runs out of GPU memory stops alone
-# (that mrhs is too large). Every run is stopped after 17 minutes and writes into its own test folder, never the production one. At the end the job
+# (that mrhs is too large). Every run is stopped after 55 minutes (about 15-20 of them go to gauge fixing, HYP and the multigrid setup with QUDA's tuning) and writes into its own test folder, never the production one. At the end the job
 # prints, per run, the gauge fixing time, the time per source position (UNTIL CONTRACTION, without the first source, which includes QUDA's tuning)
 # with the time for one t_src and one cfg it gives, and the GPU memory.
 # Usage, from this folder:   sbatch 2pt_coulomb_boosted_sepq_frontier_timing_test_1gcd.sh
@@ -49,6 +49,8 @@ mkdir -p $CUPY_CACHE_DIR $TMPDIR
 export LD_PRELOAD=/opt/cray/pe/mpich/8.1.31/gtl/lib/libmpi_gtl_hsa.so   # GPU transport layer for Cray MPICH GPU support; harmless with GDR off
 unset HIP_VISIBLE_DEVICES CUDA_VISIBLE_DEVICES                          # the GCD of each rank comes from Slurm only (ROCR_VISIBLE_DEVICES)
 cd "$RUNDIR"
+export QUDA_RESOURCE_PATH=$(python3 -c "from ${SETUP%.py} import quda_resource_path; print(quda_resource_path)")   # QUDA's tuning cache: same string as resource_path in core.init
+mkdir -p "$QUDA_RESOURCE_PATH"                                                                                    # as on Delta: QUDA saves no tuning into a missing folder
 
 # GPU memory of the 8 GCDs every 2 s: QUDA's solver memory peaks inside the solves, between the lines the runs log
 ( while true; do rocm-smi --showmeminfo vram --csv 2>/dev/null | awk -F, '/^card/ {print $1 "," $NF}'; sleep 2; done ) > gpu_mem.csv &
@@ -58,7 +60,7 @@ MONITOR=$!
 PIDS=()
 for entry in "${RUNS[@]}"; do
     read -r NAME MRHS <<< "$entry"
-    PT2_OUTPUT_DIR=$RUNDIR/out_$NAME PT2_MRHS=$MRHS timeout 17m \
+    PT2_OUTPUT_DIR=$RUNDIR/out_$NAME PT2_MRHS=$MRHS timeout 55m \
         srun -u -N 1 -n 1 -c 7 --exact --gpus-per-task=1 --gpu-bind=verbose,closest -o "logs/$NAME.out" -e "logs/$NAME.err" \
         python3 -u -m mpi4py "$SCRIPT" --icfg 0 --n 1 &
     PIDS+=($!)

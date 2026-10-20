@@ -51,6 +51,8 @@ mkdir -p $CUPY_CACHE_DIR $TMPDIR
 export LD_PRELOAD=/opt/cray/pe/mpich/8.1.31/gtl/lib/libmpi_gtl_hsa.so   # GPU transport layer for Cray MPICH GPU support; harmless with GDR off
 unset HIP_VISIBLE_DEVICES CUDA_VISIBLE_DEVICES                          # the GCD of each rank comes from Slurm only (ROCR_VISIBLE_DEVICES)
 cd "$RUNDIR"
+export QUDA_RESOURCE_PATH=$(python3 -c "from ${SETUP%.py} import quda_resource_path; print(quda_resource_path)")   # QUDA's tuning cache: same string as resource_path in core.init
+mkdir -p "$QUDA_RESOURCE_PATH"                                                                                    # as on Delta: QUDA saves no tuning into a missing folder
 
 # fail fast if the first gauge file is not there (the setup builds the name from gauge_file_prefix and cfg_list)
 GAUGE=$(python3 -c "from ${SETUP%.py} import cfg_list, gauge_file_prefix; print(f'{gauge_file_prefix}.{cfg_list[$ICFG]}')")
