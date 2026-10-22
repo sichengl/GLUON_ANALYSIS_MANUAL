@@ -5,7 +5,7 @@
 #  C2pf:    the plain q = 0 2pt at the sink momenta p_f(pz) of this (frame, q): denominators of the ratio and the GEVP at the sink
 #  C2pi:    the plain q = 0 2pt at the source momenta p_i(pz) = p_f(pz) - q: denominators of the ratio and the GEVP at the source
 #Frame "forward" (q = 0) writes the C3input file only: at q = 0 that file is also the C2pf and the C2pi file.
-#Same reading, cfg selection and notes as delta_package_final.py, which packs several q into one file; here every file holds one q and has no q axis.
+#Every file holds one q and has no q axis: to get a q axis, stack the C3input files of several (frame, q).
 #Run it on Frontier, CPU only, with the setup next to it: python3 frontier_package_byq.py (the Frontier copy of delta_package_byq.py).
 #It reads the 1- and 2-GCD runs, which write the same folder and share the 800 cfgs; for the 8-GCD run import sepq_2pt_setup_frontier_final_8gcd instead.
 #Only finished cfgs are packed: those with all 12 .h5 files on disk (the merge writes each file under its final name only when it is complete)
@@ -24,7 +24,7 @@ from sepq_2pt_setup_frontier_final_2gcd import delta_params, cfg_list, smear_tag
 pack_list = [["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["sym", [0, 2, 0]], ["sym", [0, -2, 0]]]   # (frame, q), q in units of 2pi/L, one set of files per entry; e.g. [["sym", [2, 0, 0]], ["asy", [1, 0, 0]], ["forward", [0, 0, 0]]]
                                    # frame "sym": P = (p_f + p_i)/2 = (0,0,pz); "asy": p_i = (0,0,pz); "forward": q = 0, p_f = p_i = (0,0,pz)
 particle_list = ["pion"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
-project_proton = False             # False: keep the proton's open Dirac indices; True: positive-parity projection, as in delta_package_final.py
+project_proton = False             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
 save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/final_production_byq"      # Orion, next to the per-cfg files
 
 
