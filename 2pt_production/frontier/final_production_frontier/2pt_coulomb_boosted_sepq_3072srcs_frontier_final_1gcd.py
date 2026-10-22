@@ -179,11 +179,8 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     src_phase_asy_non0xi = cp.asarray(np.exp(src_phase_sign * 1j * 2 * np.pi / delta_params.GLs * (delta_params.q_asy_non0xi_list @ x_vec)) / n_spatial_src)
                     src_phase_plain      = cp.asarray(np.exp(src_phase_sign * 1j * 2 * np.pi / delta_params.GLs * (delta_params.q_plain_list      @ x_vec)) / n_spatial_src)
 
-                    for smear_src in smear_list:
-                        i_src_shape,src_shape = smear_src[0]
-                        i_src_frac,src_frac   = smear_src[1]
-                        rho_T_src, rho_z_src = delta_params.shape_list[i_src_shape]
-                        k_src = delta_params.k_list[i_src_frac]
+                    for i_src, (rho_T_src, rho_z_src, frac_src) in enumerate(delta_params.smear_list):
+                        k_src = delta_params.k_list[i_src]
 
                         #SRC: boosted Gaussian in Coulomb gauge, -k for prop1 and +k for prop2
                         #prop1 is conjugated, and will be used for anti-quark
@@ -191,7 +188,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         prop1 = prop2 = prop1_inv = prop2_inv = pf_phases_plain = None      # drop the previous source smearing's propagators before allocating new ones (MEMORY: and the phases)
                         deviceSynchronize()
                         s = perf_counter()
-                        core.getLogger().info(f"SRC SMEARING: {shape_names[i_src_shape]} rho_T {rho_T_src} rho_z {rho_z_src}, frac {delta_params.mom_frac_list[i_src_frac]}")
+                        core.getLogger().info(f"SRC SMEARING: {smear_names[i_src]} rho_T {rho_T_src} rho_z {rho_z_src}, frac {frac_src}")
                         prop1_inv = coulomb_boosted_source(latt_info, -k_src, src_pos, rho_T_src, rho_z_src)
                         #MEMORY: the +k source is built after the -k solution has gone to the CPU, see INVERT
 
@@ -217,18 +214,15 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         core.getLogger().info(f"INVERT 2 propagagors: {perf_counter() - s} secs")
                         log_gpu_memory("AFTER INVERT")
 
-                        for smear_snk in smear_list:
+                        for i_snk, (rho_T_sink, rho_z_sink, frac_sink) in enumerate(delta_params.smear_list):
 
-                            i_snk_shape,snk_shape = smear_snk[0]
-                            i_snk_frac,snk_frac   = smear_snk[1]
-                            rho_T_sink, rho_z_sink = delta_params.shape_list[i_snk_shape]
-                            k_sink = delta_params.k_list[i_snk_frac]
+                            k_sink = delta_params.k_list[i_snk]
 
                             #SINK: the same smearing with the sink parameters, from the unsmeared solution each time
                             prop1 = prop2 = pf_phases_plain = None      # drop the previous sink smearing's propagators before allocating new ones (MEMORY: and the phases)
                             deviceSynchronize()
                             s = perf_counter()
-                            core.getLogger().info(f"SINK SMEARING: {shape_names[i_snk_shape]} rho_T {rho_T_sink} rho_z {rho_z_sink}, frac {delta_params.mom_frac_list[i_snk_frac]}")
+                            core.getLogger().info(f"SINK SMEARING: {smear_names[i_snk]} rho_T {rho_T_sink} rho_z {rho_z_sink}, frac {frac_sink}")
                             #MEMORY: each solution comes back to the GPU only for its own smearing, and prop1 waits on the CPU (prop1_host) while prop2
                             #is smeared. Then prop1 and the sink phases come back for the contraction
                             prop1_inv = core.LatticePropagator(latt_info)
@@ -293,34 +287,34 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
 
                                     gamma_source_bar = G4 @ gamma_source.conj().T @ G4
 
-                                    pion_forward[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    pion_forward[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,li,liqzt->qzt", src_phase_forward, gamma_source_bar @ G5, pion_open_forward)                            # (1, 7, Lt_local)
-                                    proton_forward_dirac[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    proton_forward_dirac[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,ij,ijlkqzt->lkqzt", src_phase_forward, charge @ gamma_source, proton_open_forward)                     # (4, 4, 1, 7, Lt_local)
 
-                                    pion_sym_0xi[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    pion_sym_0xi[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,li,liqzt->qzt", src_phase_sym_0xi, gamma_source_bar @ G5, pion_open_sym_0xi)                            # (8, 7, Lt_local)
-                                    proton_sym_0xi_dirac[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    proton_sym_0xi_dirac[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,ij,ijlkqzt->lkqzt", src_phase_sym_0xi, charge @ gamma_source, proton_open_sym_0xi)                     # (4, 4, 8, 7, Lt_local)
 
-                                    pion_sym_non0xi[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    pion_sym_non0xi[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,li,liqzt->qzt", src_phase_sym_non0xi, gamma_source_bar @ G5, pion_open_sym_non0xi)                      # (18, 7, Lt_local)
-                                    proton_sym_non0xi_dirac[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    proton_sym_non0xi_dirac[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,ij,ijlkqzt->lkqzt", src_phase_sym_non0xi, charge @ gamma_source, proton_open_sym_non0xi)               # (4, 4, 18, 7, Lt_local)
 
-                                    pion_asy_0xi[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    pion_asy_0xi[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,li,liqzt->qzt", src_phase_asy_0xi, gamma_source_bar @ G5, pion_open_asy_0xi)                            # (8, 7, Lt_local)
-                                    proton_asy_0xi_dirac[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    proton_asy_0xi_dirac[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,ij,ijlkqzt->lkqzt", src_phase_asy_0xi, charge @ gamma_source, proton_open_asy_0xi)                     # (4, 4, 8, 7, Lt_local)
 
-                                    pion_asy_non0xi[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    pion_asy_non0xi[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,li,liqzt->qzt", src_phase_asy_non0xi, gamma_source_bar @ G5, pion_open_asy_non0xi)                      # (36, 7, Lt_local)
-                                    proton_asy_non0xi_dirac[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    proton_asy_non0xi_dirac[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,ij,ijlkqzt->lkqzt", src_phase_asy_non0xi, charge @ gamma_source, proton_open_asy_non0xi)               # (4, 4, 36, 7, Lt_local)
 
-                                    pion_plain[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    pion_plain[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,li,lipt->qpt", src_phase_plain, gamma_source_bar @ G5, pion_open_plain)                                 # (1, 99, Lt_local)
-                                    proton_plain_dirac[i_snk_shape, i_src_shape, i_snk_frac, i_src_frac, i_gamma_sink, i_gamma_source] += contract(
+                                    proton_plain_dirac[i_snk, i_src, i_gamma_sink, i_gamma_source] += contract(
                                     "q,ij,ijlkpt->lkqpt", src_phase_plain, charge @ gamma_source, proton_open_plain)                          # (4, 4, 1, 99, Lt_local)
 
                             deviceSynchronize()
@@ -363,7 +357,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
         for particle in ["pion", "proton"]:
             key = f"pion_{case}" if particle == "pion" else f"proton_{case}_dirac"
             filename = h5_name(cfg_dir, case, particle, cfg)
-            dim_head = ["shape_sink","shape_source","frac_sink","frac_source","gamma_sink","gamma_source"] + (["dirac_sink","dirac_source"] if particle == "proton" else [])
+            dim_head = ["smear_sink","smear_source","gamma_sink","gamma_source"] + (["dirac_sink","dirac_source"] if particle == "proton" else [])
             dim_tail = ["t_src_list","q_list","momentum_list","tsep"] if case == "plain" else ["t_src_list","q_list","pz","tsep"]
 
             if latt_info.mpi_rank == 0:
@@ -371,8 +365,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     f.create_dataset("q_list", data=np.array(q_case))
                     f.create_dataset("momentum_list", data=np.array(pf_case))                                   # p_f of every entry: [iq, iz] (cases) or [ip] (plain)
                     f.create_dataset("pz_list", data=np.array(delta_params.pz_list))
-                    f.create_dataset("shape_list", data=np.array(delta_params.shape_list))
-                    f.create_dataset("mom_frac_list", data=np.array(delta_params.mom_frac_list))
+                    f.create_dataset("smear_list", data=np.array(delta_params.smear_list))                      # (smear, 3): rows [rho_T, rho_z, mom_frac]
                     f.create_dataset("k_list", data=np.array(delta_params.k_list))
                     if particle == "proton":
                         f.create_dataset("parity_p", data=cp.asnumpy(parity_p))      # (1+g4)/2, for pt2_forward
@@ -384,9 +377,9 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                         dset.attrs["frame"] = frame_note
                         dset.attrs["dim_spec"] = np.array(dim_head + dim_tail, dtype=h5py.string_dtype())
                         dset.attrs["gamma_list"] = np.array(gamma_names, dtype=h5py.string_dtype())
-                        dset.attrs["shape_names"] = np.array(shape_names, dtype=h5py.string_dtype())
-                        dset.attrs["shape_list"] = "rows of shape_list dataset: [rho_T, rho_z]; index order (sink, source)"
-                        dset.attrs["mom_frac_list"] = "quark boost k = frac * mom_max in units of 2pi/L along z; index order (sink, source)"
+                        dset.attrs["smear_names"] = np.array(smear_names, dtype=h5py.string_dtype())
+                        dset.attrs["smear_list"] = np.array(delta_params.smear_list)                  # row i = [rho_T, rho_z, mom_frac] of smear index i (smear_sink and smear_source)
+                        dset.attrs["smear_list_note"] = "rows [rho_T, rho_z, mom_frac] of smear_sink and smear_source; quark boost k = mom_frac * mom_max in units of 2pi/L along z (k_list dataset)"
                         dset.attrs["spatial_sources"] = source_note
                         dset.attrs["smearing"] = smearing_note
                         dset.attrs["gauge_fixing"] = gauge_fix_note
@@ -411,7 +404,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                                                             "Antiperiodic sign already applied. pt2_backward[..., 0] is the source slice projected with parity_m: do not use it. "
                                                             "The time reflection holds for the projected correlators, not for M: C_backward(tsep) = s_a s_b C_forward(tsep) "
                                                             "for tsep >= 1: " + time_reflection_note)
-                            dset.attrs["propagator"] = "prop2 (boost +k) for all three quark lines; source smearing = (shape_source, frac_source), sink smearing = (shape_sink, frac_sink)"
+                            dset.attrs["propagator"] = "prop2 (boost +k) for all three quark lines; source smearing = smear_list[smear_source], sink smearing = smear_list[smear_sink]"
 
             if latt_info.mpi_rank == 0:
                 with h5py.File(f"{filename}.tmp", "a") as f:

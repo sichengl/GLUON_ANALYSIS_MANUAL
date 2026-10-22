@@ -21,7 +21,7 @@
 # Array task i measures cfg_list[i] (--n 1): one cfg per task. Only the cfgs whose gauge file is on Fermilab can run: a task whose file is missing
 # stops at the check below, so submit the tasks of the cfgs that are there, e.g. sbatch --array=0-9 ... for the first 10.
 # Time: Delta measured 10.66 s per source, 9.2 h per cfg, and the Fermilab steps are as fast (inversion pair 3.7 s, pion + proton contraction 0.91 s),
-# so about 9 h per cfg; 14 h leaves margin (lq2_gpu accepts 18 h and refuses 27 h). Output about 22 GB per cfg (0.93 GB per t_src), 4.5 TB for the 200 cfgs.
+# so about 9 h per cfg; 14 h leaves margin (lq2_gpu accepts 18 h and refuses 27 h). Output about 5.6 GB per cfg (0.23 GB per t_src), 1.1 TB for the 200 cfgs.
 # Every task runs in its own folder testruns/final_<jobid>_<task>, on copies of the python files; the folder also keeps this sbatch script.
 # A task killed at the time limit can be resubmitted (sbatch --array=<task> ...): the per-t_src parts already on disk are skipped.
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
@@ -30,12 +30,8 @@ mkdir -p logs
 SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_fermilab_final.py
 SETUP=sepq_2pt_setup_fermilab_final.py
 SUBMIT=2pt_coulomb_boosted_sepq_3072srcs_fermilab_final.sh            # name of this file, used for its copy in the run folder
-SMEAR=coulomb_smearing.py
-[ -f "$SMEAR" ] || SMEAR=../../tools/coulomb_smearing.py                 # repo layout: 2pt_production/tools, two levels up from 2pt_production/fermilab/<this folder>
-[ -f "$SMEAR" ] || SMEAR=../tools/coulomb_smearing.py                    # or one level up, from a folder in 2pt_production
-COMM=pt2_comm_tools.py
-[ -f "$COMM" ] || COMM=../../tools/pt2_comm_tools.py                     # the shared TwoPtParams class, imported by the setup
-[ -f "$COMM" ] || COMM=../tools/pt2_comm_tools.py
+SMEAR=../../tools/coulomb_smearing.py          # the only copy: 2pt_production/tools, two levels up from 2pt_production/fermilab/<this folder>
+COMM=../../tools/pt2_comm_tools.py             # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
 
 # fail fast if a file the script imports is missing
 for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM"; do

@@ -19,7 +19,7 @@
 # Coulomb-gauge boosted smearing, 4 A100-40GB GPUs on one Delta gpuA100x4 node, grid [1,1,1,4].
 # Array task i measures cfg_list[i], cfg_list[i+1], cfg_list[i+2] (--n 3): 67 tasks, the last one has 2 cfgs.
 # Time (from the tuning and stream-e test timings): about 13 s per source (2 x 3.8 s inversions, 4 x (0.17 s sink smearing + 1.06 s contraction),
-# 0.6 s phases), so about 11.4 h per cfg and 34 h per task. Output about 22 GB per cfg (0.93 GB per t_src), 4.5 TB for the 200 cfgs.
+# 0.6 s phases), so about 11.4 h per cfg and 34 h per task. Output about 5.6 GB per cfg (0.23 GB per t_src), 1.1 TB for the 200 cfgs.
 # Every task runs in its own folder testruns/final_<jobid>_<task>, on copies of the python files; the folder also keeps this sbatch script.
 # A task killed at the time limit can be resubmitted (sbatch --array=<task> ...): the per-t_src parts already on disk are skipped.
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
@@ -28,12 +28,8 @@ mkdir -p logs
 SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_delta_final.py
 SETUP=sepq_2pt_setup_delta_final.py
 SUBMIT=2pt_coulomb_boosted_sepq_3072srcs_delta_final.sh               # name of this file, used for its copy in the run folder
-SMEAR=coulomb_smearing.py
-[ -f "$SMEAR" ] || SMEAR=../../tools/coulomb_smearing.py                 # repo layout: 2pt_production/tools, two levels up from 2pt_production/delta/<this folder>
-[ -f "$SMEAR" ] || SMEAR=../tools/coulomb_smearing.py                    # or one level up, from a folder in 2pt_production
-COMM=pt2_comm_tools.py
-[ -f "$COMM" ] || COMM=../../tools/pt2_comm_tools.py                     # the shared TwoPtParams class, imported by the setup
-[ -f "$COMM" ] || COMM=../tools/pt2_comm_tools.py
+SMEAR=../../tools/coulomb_smearing.py          # the only copy: 2pt_production/tools, two levels up from 2pt_production/delta/<this folder>
+COMM=../../tools/pt2_comm_tools.py             # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
 
 # fail fast if a file the script imports is missing
 for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM"; do

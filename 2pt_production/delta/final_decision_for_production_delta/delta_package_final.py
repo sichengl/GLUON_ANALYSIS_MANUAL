@@ -10,7 +10,7 @@ import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [here, os.path.join(here, "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools
-from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, shape_names
+from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names
 
 
 #======== what to pack ========
@@ -76,7 +76,7 @@ with h5py.File(h5_name("forward", "proton", cfg_done[0]), "r") as f:
     parity_p = f["parity_p"][:]                                       # (1 + gamma4) / 2
     parity_m = f["parity_m"][:]                                       # (1 - gamma4) / 2
     proton_attrs = dict(f["pt2_forward"].attrs)
-n_tsrc = ref_shape[read_plan[0][0], "pion"][6]                     # (shape, shape, frac, frac, g, g, t_src, q, pz, tsep)
+n_tsrc = ref_shape[read_plan[0][0], "pion"][4]                     # (smear, smear, g, g, t_src, q, pz, tsep)
 
 #keep only the cfgs whose files open with that layout (a damaged or half-copied file is listed and left out)
 cfg_pack = []
@@ -93,10 +93,10 @@ for cfg in cfg_done:
 n_cfg = len(cfg_pack)
 print(f"packing {n_cfg} cfgs, q = {q_pack_list} from {q_case}")
 
-#packed arrays: (cfg, smear_sink, smear_source, g_snk, g_src, [dirac_snk, dirac_src,] t_src, q, pz, tsep); smear i = shape i with boost i
-n_q, n_pz, n_gamma = len(q_pack_list), len(delta_params.pz_list), len(delta_params.gamma_ids)
-pion_shape = (2, 2, n_gamma, n_gamma, n_tsrc, n_q, n_pz, tsep_max)
-proton_shape = (2, 2, n_gamma, n_gamma) + (() if project_proton else (4, 4)) + (n_tsrc, n_q, n_pz, tsep_max)
+#packed arrays: (cfg, smear_sink, smear_source, g_snk, g_src, [dirac_snk, dirac_src,] t_src, q, pz, tsep); smear i = row i of smear_list
+n_smear, n_q, n_pz, n_gamma = len(delta_params.smear_list), len(q_pack_list), len(delta_params.pz_list), len(delta_params.gamma_ids)
+pion_shape = (n_smear, n_smear, n_gamma, n_gamma, n_tsrc, n_q, n_pz, tsep_max)
+proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else (4, 4)) + (n_tsrc, n_q, n_pz, tsep_max)
 q_tag = "-".join("".join(f"m{-v}" if v < 0 else f"{v}" for v in q) for q in q_pack_list) if n_q <= 4 else f"{n_q}q"
 name_tag = f"{smear_tag}_GEVP_q{q_tag}_{frame}_fb_tsep{tsep_max}_{n_src}src_ncfg{n_cfg}"
 filenames = {particle: f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5" for particle in ["pion", "proton"]}
@@ -108,7 +108,7 @@ src_lists = {name: np.zeros((n_cfg, n), int) for name, n in [("t_src_list", n_ts
 
 for icfg, cfg in enumerate(cfg_pack):
     print("reading cfg", cfg, flush=True)
-    for particle, shape in [("pion", pion_shape), ("proton", (2, 2, n_gamma, n_gamma, 4, 4, n_tsrc, n_q, n_pz, tsep_max))]:
+    for particle, shape in [("pion", pion_shape), ("proton", (n_smear, n_smear, n_gamma, n_gamma, 4, 4, n_tsrc, n_q, n_pz, tsep_max))]:
         corr = {pt2: np.zeros(shape, "<c16") for pt2 in pt2_names}
         for case, iq_sorted, reorder, positions in read_plan:
             with h5py.File(h5_name(case, particle, cfg), "r") as f:
@@ -118,10 +118,8 @@ for icfg, cfg in enumerate(cfg_pack):
                 if particle == "proton":
                     assert np.array_equal(f["pt2_forward"].attrs["t_src_list"], src_lists["t_src_list"][icfg]), f"cfg {cfg}: pion and proton t_src differ"
                 for pt2 in pt2_names:
-                    data = f[pt2][..., iq_sorted, :, :][..., reorder, :, :]      # (shape_snk, shape_src, frac_snk, frac_src, g_snk, g_src, [dirac,] t_src, q, pz, tsep)
-                    for a in range(2):
-                        for b in range(2):
-                            corr[pt2][a, b][..., positions, :, :] = data[a, b, a, b]     # sink smearing a, source smearing b (the other blocks are never computed)
+                    data = f[pt2][..., iq_sorted, :, :][..., reorder, :, :]      # (smear_snk, smear_src, g_snk, g_src, [dirac,] t_src, q, pz, tsep)
+                    corr[pt2][..., positions, :, :] = data
         if particle == "proton" and project_proton:
             corr["pt2_forward"] = np.einsum("kl,abcdlktqpT->abcdtqpT", parity_p, corr["pt2_forward"])         # sum_kl parity_p[k,l] M[l,k]
             corr["pt2_backward"] = -np.einsum("kl,abcdlktqpT->abcdtqpT", parity_m, corr["pt2_backward"])      # -sum_kl parity_m[k,l] M[l,k]
@@ -137,6 +135,7 @@ common_attrs = {
     "momentum_transfer": pion_attrs["momentum_transfer"],
     "spatial_sources": pion_attrs["spatial_sources"],
     "time_index": pion_attrs["time_index"],
+    "smear_list": pion_attrs["smear_list"],                           # rows [rho_T, rho_z, mom_frac] of smear_sink and smear_source
     "kinematics": (f"q_list[iq] packed from kinematic_case_list[iq]; frame {frame}: pf_list[iq, iz] = p_f, pi_list[iq, iz] = p_i = p_f - q, "
                    "pz = pz_list[iz] (forward: p_f = p_i = (0,0,pz); sym: P = (p_f + p_i)/2 = (0,0,pz); asy: p_i = (0,0,pz))"),
     "source_files": gevp_dir,
@@ -151,8 +150,8 @@ for particle in ["pion", "proton"]:
     f.create_dataset("pf_list", data=pf_table)
     f.create_dataset("pi_list", data=pf_table - np.array(q_pack_list)[:, None])
     f.create_dataset("pz_list", data=np.array(delta_params.pz_list))
-    f.create_dataset("smear_list", data=np.array([shape + [frac] for shape, frac in zip(delta_params.shape_list, delta_params.mom_frac_list)]))
-    f.create_dataset("smear_names", data=np.array(shape_names, dtype=h5py.string_dtype()))
+    f.create_dataset("smear_list", data=pion_attrs["smear_list"])     # rows [rho_T, rho_z, mom_frac], as the production saved them
+    f.create_dataset("smear_names", data=np.array(smear_names, dtype=h5py.string_dtype()))
     for key in common_attrs:
         f.attrs[key] = common_attrs[key]
     if particle == "pion":

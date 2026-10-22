@@ -100,9 +100,8 @@ class TwoPtParams:
         self.icfg = 0                   #default of --icfg: position in cfg_list of the job's first cfg
         self.n_cfg = 20                 #default of --n: number of cfgs the job measures
         #smearing and gammas
-        self.shape_list = None
-        self.mom_frac_list = None
-        self.k_list = None
+        self.smear_list = None          #rows [rho_T, rho_z, mom_frac]: the smearing operators, each with its own quark boost k = mom_frac * mom_max along z
+        self.k_list = None              #k of every row of smear_list, in units of 2pi/L
         self.mom_min = None
         self.mom_max = None
         self.gamma_ids = None
@@ -140,8 +139,7 @@ class TwoPtParams:
             "GLs": self.GLs,
             "GLt": self.GLt,
             "cfgs_to_meas": n,
-            "shape_list": self.shape_list,
-            "mom_frac_list": self.mom_frac_list,
+            "smear_list": self.smear_list,
             "k_list": self.k_list,
             "mom_min": self.mom_min,
             "mom_max": self.mom_max,
@@ -183,11 +181,12 @@ class TwoPtParams:
 
 
     #======== container definitions (call after core.init): the time axis is latt_info.Lt, the local time slices of this rank ========
+    #axes (smear_sink, smear_source, gamma_sink, gamma_source, [dirac_sink, dirac_source,] [t_src,] q, p, time): smear i is row i of smear_list
     def make_containers(self, latt_info):
         import cupy as cp
-        n_shape, n_frac, n_gamma, n_t = len(self.shape_list), len(self.mom_frac_list), len(self.gamma_ids), len(self.t_base)
-        pion   = lambda n_q, n_p: cp.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma,       n_t, n_q, n_p, latt_info.Lt), "<c16")
-        proton = lambda n_q, n_p: cp.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma, 4, 4, n_t, n_q, n_p, latt_info.Lt), "<c16")
+        n_smear, n_gamma, n_t = len(self.smear_list), len(self.gamma_ids), len(self.t_base)
+        pion   = lambda n_q, n_p: cp.zeros((n_smear, n_smear, n_gamma, n_gamma,       n_t, n_q, n_p, latt_info.Lt), "<c16")
+        proton = lambda n_q, n_p: cp.zeros((n_smear, n_smear, n_gamma, n_gamma, 4, 4, n_t, n_q, n_p, latt_info.Lt), "<c16")
         return {
             "pion_forward":            pion(  len(self.q_forward_list),    len(self.pz_list)),
             "proton_forward_dirac":    proton(len(self.q_forward_list),    len(self.pz_list)),
@@ -207,9 +206,9 @@ class TwoPtParams:
     #containers without the t_src index: they hold only the t_src being computed, so the GPU never holds more than one t_src of results
     def make_containers_one_tsrc(self, latt_info):
         import cupy as cp
-        n_shape, n_frac, n_gamma = len(self.shape_list), len(self.mom_frac_list), len(self.gamma_ids)
-        pion   = lambda n_q, n_p: cp.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma,       n_q, n_p, latt_info.Lt), "<c16")
-        proton = lambda n_q, n_p: cp.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma, 4, 4, n_q, n_p, latt_info.Lt), "<c16")
+        n_smear, n_gamma = len(self.smear_list), len(self.gamma_ids)
+        pion   = lambda n_q, n_p: cp.zeros((n_smear, n_smear, n_gamma, n_gamma,       n_q, n_p, latt_info.Lt), "<c16")
+        proton = lambda n_q, n_p: cp.zeros((n_smear, n_smear, n_gamma, n_gamma, 4, 4, n_q, n_p, latt_info.Lt), "<c16")
         return {
             "pion_forward":            pion(  len(self.q_forward_list),    len(self.pz_list)),
             "proton_forward_dirac":    proton(len(self.q_forward_list),    len(self.pz_list)),
@@ -229,9 +228,9 @@ class TwoPtParams:
     #forward and backward 2pt of one t_src: numpy arrays on the host (no core.init needed), tsep_max time slices instead of GLt.
     #Two containers per particle and case: fb_dic["pt2_forward"][key] and fb_dic["pt2_backward"][key], key as in make_containers_one_tsrc
     def make_containers_one_tsrc_fb(self):
-        n_shape, n_frac, n_gamma = len(self.shape_list), len(self.mom_frac_list), len(self.gamma_ids)
-        pion   = lambda n_q, n_p: np.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma,       n_q, n_p, self.tsep_max), "<c16")
-        proton = lambda n_q, n_p: np.zeros((n_shape, n_shape, n_frac, n_frac, n_gamma, n_gamma, 4, 4, n_q, n_p, self.tsep_max), "<c16")
+        n_smear, n_gamma = len(self.smear_list), len(self.gamma_ids)
+        pion   = lambda n_q, n_p: np.zeros((n_smear, n_smear, n_gamma, n_gamma,       n_q, n_p, self.tsep_max), "<c16")
+        proton = lambda n_q, n_p: np.zeros((n_smear, n_smear, n_gamma, n_gamma, 4, 4, n_q, n_p, self.tsep_max), "<c16")
         return {
             pt2: {
                 "pion_forward":            pion(  len(self.q_forward_list),    len(self.pz_list)),

@@ -20,8 +20,8 @@ mkdir -p logs
 RUNS=("mrhs1 1" "mrhs2 2" "mrhs3 3" "mrhs4 4" "mrhs6 6")
 SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_1gcd.py
 SETUP=sepq_2pt_setup_frontier_final_1gcd.py
-SMEAR=coulomb_smearing.py
-COMM=pt2_comm_tools.py
+SMEAR=../../tools/coulomb_smearing.py          # the only copy: 2pt_production/tools, two levels up from 2pt_production/frontier/<this folder>
+COMM=../../tools/pt2_comm_tools.py             # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
 SUBMIT=2pt_coulomb_boosted_sepq_frontier_timing_test_1gcd.sh        # name of this file, used for its copy in the run folder
 
 # fail fast if a file the script imports is missing

@@ -1,0 +1,13 @@
+{
+ "ratio_file": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/ratio_data/ratio_method1_pion_gevp_smear01_gamma012_t02_tref4_fb_TXTXpTYTYm2XYXY_q000_hyp0-8_3072src_ncfg62.h5",
+ "twopt_fit": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/twopt_fit_results_pion_gevp_smear01_gamma012_t02_tref4_fb_3072src_ncfg62.h5",
+ "twopt_tag": "nstate3_t4-15_svd1e-04_tref10",
+ "operator": "TXTXpTYTYm2XYXY",
+ "direction": "fb",
+ "label": "pion_gevp_smear01_gamma012_t02_tref4",
+ "out_dir": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production",
+ "ylim": [
+  -0.6,
+  0.1
+ ]
+}

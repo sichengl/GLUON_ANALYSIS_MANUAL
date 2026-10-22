@@ -22,8 +22,8 @@ NCFG=${NCFG:-1}                 # cfgs per run
 export PT2_MRHS=${MRHS:-6}      # read by the setup; take it from the timing test
 SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_2gcd.py
 SETUP=sepq_2pt_setup_frontier_final_2gcd.py
-SMEAR=coulomb_smearing.py
-COMM=pt2_comm_tools.py
+SMEAR=../../tools/coulomb_smearing.py          # the only copy: 2pt_production/tools, two levels up from 2pt_production/frontier/<this folder>
+COMM=../../tools/pt2_comm_tools.py             # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
 SUBMIT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_2gcd.sh        # name of this file, used for its copy in the run folder
 
 # fail fast if a file the script imports is missing

@@ -50,12 +50,12 @@ delta_params.hyp_alpha3 = 0.3
 #40 GB A100s: the site-local contractions run on nt_chunk local time slices at a time
 delta_params.nt_chunk = 4
 
-#smearing shapes [rho_T, rho_z], quark boosts, interpolators
-delta_params.shape_list = [[4.5, 2.25], [1.5, 1.5]]
-delta_params.mom_frac_list = [0.8, 0.0]
+#smearings [rho_T, rho_z, mom_frac], each with its own quark boost k = mom_frac * mom_max along z; interpolators
+delta_params.smear_list = [[4.5, 2.25, 0.8],       # boosted, for pz >= 2
+                           [1.5, 1.5, 0.0]]        # unboosted, for pz 0-1
 delta_params.mom_min = 0
 delta_params.mom_max = 6
-delta_params.k_list = [np.array([0, 0, frac * delta_params.mom_max]) for frac in delta_params.mom_frac_list]
+delta_params.k_list = [np.array([0, 0, frac * delta_params.mom_max]) for rho_T, rho_z, frac in delta_params.smear_list]
 delta_params.gamma_ids = [15, 7, 11]                # Gamma(15) = G5, Gamma(7) = G5G4 = -G4G5, Gamma(11) = G3G5
 
 #momentum transfers and sink momenta
@@ -84,14 +84,9 @@ cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delt
 cfg_measure_spacing = 1
 src_phase_sign = -1
 n_spatial_src = len(delta_params.x_base) * len(delta_params.y_base) * len(delta_params.z_base)
-shape_names = ["rho4p5z2p25", "rho1p5"]
-#each shape smeared with one boost only: [4.5, 2.25] (pz >= 2) with frac 0.8, [1.5, 1.5] (pz 0-1) unboosted
-smear_list = [
-    [(0, delta_params.shape_list[0]), (0, delta_params.mom_frac_list[0])],    # rho_T 4.5, rho_z 2.25, frac 0.8 (k = 4.8)
-    [(1, delta_params.shape_list[1]), (1, delta_params.mom_frac_list[1])],    # rho_T 1.5, rho_z 1.5,  frac 0
-]
-frac_str = [("%.3f" % frac).rstrip("0").rstrip(".").replace(".", "p") for frac in delta_params.mom_frac_list]
-smear_tag = f"coulomb_{'-'.join(shape_names)}_frac{'-'.join(frac_str)}_paired"
+smear_names = ["rho4p5z2p25", "rho1p5"]           # one name per row of delta_params.smear_list
+frac_str = [("%.3f" % frac).rstrip("0").rstrip(".").replace(".", "p") for rho_T, rho_z, frac in delta_params.smear_list]
+smear_tag = f"coulomb_{'-'.join(smear_names)}_frac{'-'.join(frac_str)}_smear"      # _smear: one smear axis per end (the _paired files of the earlier runs have separate shape and frac axes)
 
 P_list = np.array([[0, 0, pz] for pz in delta_params.pz_list])
 pf_forward_table    = P_list + np.array(delta_params.q_forward_list)[:, None]
@@ -109,9 +104,8 @@ pf_asy_non0xi_index_list = [[delta_params.pf_plain_list.index(pf) for pf in row]
 
 #======== notes written into the .h5 attributes ========
 smearing_note = ("boosted Gaussian in Coulomb gauge, no gauge links: K(d) = exp(-(dx^2+dy^2)/rho_T^2 - dz^2/rho_z^2) exp(+i 2pi/L k.d), d = x - y, "
-                 "Gaussian part normalized to sum 1; source and sink smearings each run over smear_list. Each shape is used with one boost only: "
-                 "[rho_T, rho_z] = [4.5, 2.25] with frac 0.8 (k = 4.8) and [1.5, 1.5] with frac 0 (k = 0), i.e. shape i with frac i; "
-                 "the other (shape, frac) entries of the arrays are not computed and stay zero")
+                 "Gaussian part normalized to sum 1; source and sink smearings each run over the rows of smear_list, [rho_T, rho_z, mom_frac] with "
+                 "quark boost k = mom_frac * mom_max along z: [4.5, 2.25, 0.8] (k = 4.8) and [1.5, 1.5, 0] (k = 0)")
 gauge_fix_note = (f"Coulomb gauge fixing of the unsmeared links by overrelaxation, fixingOVR(gauge_dir={delta_params.gauge_fix_dir}, "
                   f"Nsteps={delta_params.gauge_fix_Nsteps}, verbose_interval={delta_params.gauge_fix_verbose_interval}, "
                   f"relax_boost={delta_params.gauge_fix_relax_boost}, tolerance={delta_params.gauge_fix_tolerance}, "
