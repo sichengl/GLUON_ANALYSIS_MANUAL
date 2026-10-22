@@ -9,6 +9,9 @@
 #Run it on Delta, CPU only, with the setup next to it: python3 delta_package_byq.py
 #Only finished cfgs are packed: those with all 12 .h5 files on disk (the merge writes each file under its final name only when it is complete)
 #that open with the same layout as the first one; the others are printed. Running it again later packs every cfg finished by then into new files.
+#Two folders are read: a cfg with all 12 files from the earlier runs (smear_tag ..._paired, arrays (shape, shape, frac, frac, gamma, gamma, ...), before
+#2026-10-22) is read from there, the others from the current runs (..._smear, arrays (smear, smear, gamma, gamma, ...)). The earlier runs computed
+#smear i as shape i with boost i only, so their blocks [a, b, a, b] are read; the packed files are the same either way (source_layout gives the folder of each cfg).
 import os
 import sys
 import numpy as np
@@ -16,7 +19,7 @@ import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [here, os.path.join(here, "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools
-from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names
+from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 
 
 #======== what to pack ========
@@ -29,21 +32,54 @@ save_dir = "/work/hdd/biqz/sliu54/2pt_production/packed/final_production_byq"   
 
 tsep_max = delta_params.tsep_max
 n_src = len(delta_params.t_base) * n_spatial_src
-gevp_dir = f"{current_dir}/{smear_tag}_GEVP_sepq_{n_src}src_phyp_fb_tsep{tsep_max}"     # gevp_dir of the job script
+assert smear_tag.endswith("_smear"), f"smear_tag {smear_tag}: expected the current tag, ending in _smear"
+old_tag = smear_tag[:-len("_smear")] + "_paired"                     # the earlier runs, separate shape and frac axes
+gevp_dirs = {tag: f"{current_dir}/{tag}_GEVP_sepq_{n_src}src_phyp_fb_tsep{tsep_max}" for tag in [old_tag, smear_tag]}     # gevp_dir of the job script
 all_cases = ["forward", "sym_0xi", "sym_non0xi", "asy_0xi", "asy_non0xi", "plain"]
 frame_cases = {"forward": ["forward"], "sym": ["sym_0xi", "sym_non0xi"], "asy": ["asy_0xi", "asy_non0xi"]}
 pt2_names = ["pt2_forward", "pt2_backward"]
+smear_list = np.array(delta_params.smear_list)                       # rows [rho_T, rho_z, mom_frac]
+n_smear = len(smear_list)
 assert particle_list in (["pion"], ["pion", "proton"]), f"particle_list {particle_list}: use ['pion'] or ['pion', 'proton']"
 os.makedirs(save_dir, exist_ok=True)
 
-def h5_name(case, particle, cfg):
-    return f"{gevp_dir}/cfg{cfg}/{particle}_{smear_tag}_GEVP_sepq_{case}_phyp_fb_tsep{tsep_max}_cfg{cfg}.h5"
+def h5_name(case, particle, cfg, tag=None):
+    tag = tag or cfg_tag[cfg]                                         # the folder this cfg is read from
+    return f"{gevp_dirs[tag]}/cfg{cfg}/{particle}_{tag}_GEVP_sepq_{case}_phyp_fb_tsep{tsep_max}_cfg{cfg}.h5"
 
-#finished cfgs: the merge has written all 12 files
-cfg_done = [int(cfg) for cfg in cfg_list if all(os.path.exists(h5_name(case, particle, cfg)) for case in all_cases for particle in ["pion", "proton"])]
-print(f"{len(cfg_done)} of {len(cfg_list)} cfgs finished in {gevp_dir}")
-print(f"not finished: {[int(cfg) for cfg in cfg_list if int(cfg) not in cfg_done]}")
+#finished cfgs: the merge has written all 12 files, in the folder of the earlier runs (looked at first) or of the current runs
+cfg_tag = {}
+for cfg in cfg_list:
+    for tag in [old_tag, smear_tag]:
+        if int(cfg) not in cfg_tag and all(os.path.exists(h5_name(case, particle, int(cfg), tag)) for case in all_cases for particle in ["pion", "proton"]):
+            cfg_tag[int(cfg)] = tag
+cfg_done = list(cfg_tag)
+for tag in [old_tag, smear_tag]:
+    print(f"{sum(t == tag for t in cfg_tag.values())} cfgs finished in {gevp_dirs[tag]}")
+print(f"{len(cfg_done)} of {len(cfg_list)} cfgs finished; not finished: {[int(cfg) for cfg in cfg_list if int(cfg) not in cfg_done]}")
 assert cfg_done, "no cfg to pack"
+
+def smear_shape(shape, old):
+    #shape of a pt2 dataset with one smear axis per end: the earlier files have (shape, shape, frac, frac, ...), of which the blocks [a, b, a, b] are read
+    if not old:
+        return shape
+    assert shape[:4] == (n_smear,) * 4, f"dataset shape {shape}"
+    return shape[:2] + shape[4:]
+
+def file_smear_list(f, old):
+    #rows [rho_T, rho_z, mom_frac] of a per-cfg file: the earlier files have them as shape i with frac i
+    return np.hstack([f["shape_list"][:], f["mom_frac_list"][:][:, None]]) if old else f["smear_list"][:]
+
+def read_2pt(dset, old, iq, ip):
+    #(smear_snk, smear_src, g_snk, g_src, [dirac,] t_src, pz, tsep) at q index iq, and for the plain case at the momenta ip in the order of pz
+    def take(head):
+        if ip is None:
+            return dset[head + (Ellipsis, iq, slice(None), slice(None))]
+        ip_sorted = sorted(ip)                                        # increasing, as h5py needs; then back to the order of pz
+        return dset[head + (Ellipsis, iq, ip_sorted, slice(None))][..., [ip_sorted.index(j) for j in ip], :]
+    if not old:
+        return take(())
+    return np.array([[take((a, b, a, b)) for b in range(n_smear)] for a in range(n_smear)])     # sink smearing a, source smearing b
 
 #q lists of every case and the momenta of the plain case, from the first cfg
 q_in_case = {}
@@ -80,7 +116,7 @@ ref_shape, ref_q, ref_p = {}, {}, {}
 for case in cases_used:
     for particle in ["pion", "proton"]:
         with h5py.File(h5_name(case, particle, cfg_done[0]), "r") as f:
-            ref_shape[case, particle] = f["pt2_forward"].shape
+            ref_shape[case, particle] = smear_shape(f["pt2_forward"].shape, cfg_tag[cfg_done[0]] == old_tag)
             ref_q[case] = f["q_list"][:]
             ref_p[case] = f["momentum_list"][:]
 with h5py.File(h5_name("forward", "pion", cfg_done[0]), "r") as f:
@@ -98,7 +134,9 @@ for cfg in cfg_done:
         for case in cases_used:
             for particle in ["pion", "proton"]:
                 with h5py.File(h5_name(case, particle, cfg), "r") as f:
-                    assert all(f[pt2].shape == ref_shape[case, particle] for pt2 in pt2_names), "dataset shape differs"
+                    old = cfg_tag[cfg] == old_tag
+                    assert all(smear_shape(f[pt2].shape, old) == ref_shape[case, particle] for pt2 in pt2_names), "dataset shape differs"
+                    assert np.array_equal(file_smear_list(f, old), smear_list), f"smear_list {file_smear_list(f, old).tolist()} differs"
                     assert np.array_equal(f["q_list"][:], ref_q[case]), "q_list differs"
                     assert np.array_equal(f["momentum_list"][:], ref_p[case]), "momentum_list differs"
         cfg_pack.append(cfg)
@@ -108,7 +146,7 @@ n_cfg = len(cfg_pack)
 print(f"packing {n_cfg} cfgs, (frame, q) = {pack_list}")
 
 #packed arrays: (cfg, smear_sink, smear_source, g_snk, g_src, [dirac_snk, dirac_src,] t_src, pz, tsep); smear i = row i of smear_list
-n_smear, n_pz, n_gamma = len(delta_params.smear_list), len(delta_params.pz_list), len(delta_params.gamma_ids)
+n_pz, n_gamma = len(delta_params.pz_list), len(delta_params.gamma_ids)
 pion_shape = (n_smear, n_smear, n_gamma, n_gamma, n_tsrc, n_pz, tsep_max)
 proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else (4, 4)) + (n_tsrc, n_pz, tsep_max)
 
@@ -137,12 +175,7 @@ for icfg, cfg in enumerate(cfg_pack):
                 if particle == "proton":
                     assert np.array_equal(f["pt2_forward"].attrs["t_src_list"], src_lists["t_src_list"][icfg]), f"cfg {cfg}: pion and proton t_src differ"
                 for pt2 in pt2_names:
-                    if ip is None:
-                        data = f[pt2][..., iq, :, :]                  # (smear_snk, smear_src, g_snk, g_src, [dirac,] t_src, pz, tsep)
-                    else:
-                        ip_sorted = sorted(ip)                        # increasing, as h5py needs; then back to the order of pz
-                        data = f[pt2][..., iq, ip_sorted, :][..., [ip_sorted.index(j) for j in ip], :]
-                    corr[pt2][...] = data
+                    corr[pt2][...] = read_2pt(f[pt2], cfg_tag[cfg] == old_tag, iq, ip)
             if particle == "proton" and project_proton:
                 corr["pt2_forward"] = np.einsum("kl,abcdlktpT->abcdtpT", parity_p, corr["pt2_forward"])          # sum_kl parity_p[k,l] M[l,k]
                 corr["pt2_backward"] = -np.einsum("kl,abcdlktpT->abcdtpT", parity_m, corr["pt2_backward"])       # -sum_kl parity_m[k,l] M[l,k]
@@ -152,14 +185,14 @@ for icfg, cfg in enumerate(cfg_pack):
 dirac = [] if project_proton else ["dirac_sink", "dirac_source"]
 common_attrs = {
     "gamma_list": pion_attrs["gamma_list"],
-    "smearing": pion_attrs["smearing"] + ". Packed smearing axes: smear_sink, smear_source = 0 or 1, rows of the smear_list dataset [rho_T, rho_z, mom_frac]",
+    "smearing": smearing_note + ". Packed smearing axes: smear_sink, smear_source = 0 or 1, rows of the smear_list dataset [rho_T, rho_z, mom_frac]",
     "gauge_fixing": pion_attrs["gauge_fixing"],
     "momentum_convention": pion_attrs["momentum_convention"],
     "momentum_transfer": pion_attrs["momentum_transfer"],
     "spatial_sources": pion_attrs["spatial_sources"],
     "time_index": pion_attrs["time_index"],
-    "smear_list": pion_attrs["smear_list"],                           # rows [rho_T, rho_z, mom_frac] of smear_sink and smear_source
-    "source_files": gevp_dir,
+    "smear_list": smear_list,                                         # rows [rho_T, rho_z, mom_frac] of smear_sink and smear_source
+    "source_files": f"{gevp_dirs[old_tag]} for the cfgs with source_layout paired, {gevp_dirs[smear_tag]} for those with source_layout smear",
 }
 role_notes = {
     "C3input": ("2pt of case {case} at q = {q}, weighted at the source with exp(-i 2pi/Ls q.x_src): the 3pt input, to be contracted with the FF of the same q. "
@@ -175,6 +208,7 @@ for i, (frame, q, role, case, iq, ip, pf, pi) in enumerate(read_plan):
     for particle in particle_list:
         f = out[i, particle]
         f.create_dataset("cfg_list", data=np.array(cfg_pack))
+        f.create_dataset("source_layout", data=np.array(["paired" if cfg_tag[cfg] == old_tag else "smear" for cfg in cfg_pack], dtype=h5py.string_dtype()))
         for name in src_lists:
             f.create_dataset(name, data=src_lists[name])
         f.create_dataset("q", data=np.array(q))
@@ -182,7 +216,7 @@ for i, (frame, q, role, case, iq, ip, pf, pi) in enumerate(read_plan):
         f.create_dataset("pi_list", data=pi)                          # (pz, 3): p_i = p_f - q
         f.create_dataset("momentum_list", data=pf if role in ["C3input", "C2pf"] else pi)     # (pz, 3): sink momentum of the 2pt in this file
         f.create_dataset("pz_list", data=np.array(delta_params.pz_list))
-        f.create_dataset("smear_list", data=pion_attrs["smear_list"])     # rows [rho_T, rho_z, mom_frac], as the production saved them
+        f.create_dataset("smear_list", data=smear_list)                   # rows [rho_T, rho_z, mom_frac], checked against every per-cfg file
         f.create_dataset("smear_names", data=np.array(smear_names, dtype=h5py.string_dtype()))
         for key in common_attrs:
             f.attrs[key] = common_attrs[key]
@@ -199,7 +233,7 @@ for i, (frame, q, role, case, iq, ip, pf, pi) in enumerate(read_plan):
             f.create_dataset("parity_m", data=parity_m)
             f.attrs["dim_pt2"] = ", ".join(["cfg", "smear_sink", "smear_source", "gamma_sink", "gamma_source"] + dirac + ["t_src", "pz", "tsep"])
             f.attrs["diquark"] = proton_attrs["diquark"]
-            f.attrs["propagator"] = proton_attrs["propagator"]
+            f.attrs["propagator"] = proton_attrs["propagator"].replace("(shape_source, frac_source)", "smear_list[smear_source]").replace("(shape_sink, frac_sink)", "smear_list[smear_sink]")
             f.attrs["projection"] = ("positive parity: forward sum_kl parity_p[k,l] M[l,k], backward -sum_kl parity_m[k,l] M[l,k] (l = dirac_sink, k = dirac_source); "
                                      "backward tsep = 0 is the source slice projected with parity_m, do not use it") if project_proton else proton_attrs["how_to_project"]
         f.close()

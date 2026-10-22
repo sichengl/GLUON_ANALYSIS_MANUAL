@@ -1,0 +1,57 @@
+{
+ "ratio_file": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/sym_avg_q2_0_0-q-2_0_0-q0_2_0-q0_-2_0/ratio_data/ratio_method1_pion_sym_avg_q2_0_0-q-2_0_0-q0_2_0-q0_-2_0_gevp_smear01_gamma012_t02_tref4_fb_TXTXpTYTYm2XYXY_hyp0-8_3072src_ncfg91.h5",
+ "twopt_fit": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/sym_avg_q2_0_0-q-2_0_0-q0_2_0-q0_-2_0/twopt_fit_results_pion_sym_avg_q2_0_0-q-2_0_0-q0_2_0-q0_-2_0_gevp_smear01_gamma012_t02_tref4_fb_3072src_ncfg91.h5",
+ "twopt_tag": "nstate3_t5-15_svd1e-04_tref10",
+ "operator": "TXTXpTYTYm2XYXY",
+ "direction": "fb",
+ "label": "pion_gevp_smear01_gamma012_t02_tref4",
+ "out_dir": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/sym_avg_q2_0_0-q-2_0_0-q0_2_0-q0_-2_0",
+ "ylim": [
+  -0.6,
+  0.1
+ ],
+ "frame": "sym",
+ "q": [
+  2,
+  0,
+  0
+ ],
+ "pf_list": [
+  [
+   1,
+   0,
+   0
+  ],
+  [
+   1,
+   0,
+   1
+  ],
+  [
+   1,
+   0,
+   2
+  ],
+  [
+   1,
+   0,
+   3
+  ],
+  [
+   1,
+   0,
+   4
+  ],
+  [
+   1,
+   0,
+   5
+  ],
+  [
+   1,
+   0,
+   6
+  ]
+ ],
+ "kin_tag": "sym_avg_q2_0_0-q-2_0_0-q0_2_0-q0_-2_0"
+}
