@@ -1,0 +1,57 @@
+{
+ "ratio_file": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/forward_q0_0_0/ratio_data/ratio_method1_pion_forward_q0_0_0_gevp_smear01_gamma012_t02_tref4_fb_TXTXpTYTYm2XYXY_hyp0-8_3072src_ncfg91.h5",
+ "twopt_fit": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/forward_q0_0_0/twopt_fit_results_pion_forward_q0_0_0_gevp_smear01_gamma012_t02_tref4_fb_3072src_ncfg91.h5",
+ "twopt_tag": "nstate3_t5-15_svd1e-04_tref10",
+ "operator": "TXTXpTYTYm2XYXY",
+ "direction": "fb",
+ "label": "pion_gevp_smear01_gamma012_t02_tref4",
+ "out_dir": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/forward_q0_0_0",
+ "ylim": [
+  -0.6,
+  0.1
+ ],
+ "frame": "forward",
+ "q": [
+  0,
+  0,
+  0
+ ],
+ "pf_list": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   1
+  ],
+  [
+   0,
+   0,
+   2
+  ],
+  [
+   0,
+   0,
+   3
+  ],
+  [
+   0,
+   0,
+   4
+  ],
+  [
+   0,
+   0,
+   5
+  ],
+  [
+   0,
+   0,
+   6
+  ]
+ ],
+ "kin_tag": "forward_q0_0_0"
+}

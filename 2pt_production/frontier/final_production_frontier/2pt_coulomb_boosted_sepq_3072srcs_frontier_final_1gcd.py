@@ -344,6 +344,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     part = part_name(cfg_dir, case, particle, cfg, t_idx, pt2)
                     with open(f"{part}.tmp", "wb") as f:
                         np.save(f, fb_dic[pt2][key])
+                        f.flush(); os.fsync(f.fileno())                 # wait until the part is really on disk: if the storage fails, an OSError here, never a damaged part under its final name
                     os.replace(f"{part}.tmp", part)
             del corr_slab
         core.getLogger().info(f"SAVE T_SRC {t0}: {perf_counter() - s} secs")
@@ -411,6 +412,7 @@ for i_cfg, cfg in tqdm(enumerate(measurement_list),desc=f"Processing cfgs"):
                     for pt2 in delta_params.fb_index:
                         for t_idx in range(len(t_src[i_cfg])):                   # the slabs saved during the run, already rolled, signed and cut to tsep_max
                             f[pt2][..., t_idx, :, :, :] = np.load(part_name(cfg_dir, case, particle, cfg, t_idx, pt2))
+                fd = os.open(f"{filename}.tmp", os.O_RDONLY); os.fsync(fd); os.close(fd)   # wait until the .h5 is really on disk, as for the parts
                 os.replace(f"{filename}.tmp", filename)
 
     #After all tsrc's files are gathered, delete the "parts" folder
