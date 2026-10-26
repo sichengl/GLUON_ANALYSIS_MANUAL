@@ -47,8 +47,8 @@ pf_list = [tuple(p) for p in INPUTS["pf_list"]]     # p_f of every pz of this (f
 q_list = [tuple(INPUTS["q"])]
 
 w_fit_list = list(range(0, 10))
-TSEP_DEFAULT = (4, 9)                 # (first, last) tsep of the fit, for every (pz, w) not in TSEP_RANGE
-TSEP_RANGE = {(0,0):(5,13)}                        # (first, last) tsep of chosen (pz, w), pz = pf[2]; e.g. {(5, 0): (6, 10), (5, 1): (6, 10)}
+TSEP_DEFAULT = (6, 14)                 # (first, last) tsep of the fit, for every (pz, w) not in TSEP_RANGE
+TSEP_RANGE = {(0,0):(4,14),(1,0):(4,14)}                        # (first, last) tsep of chosen (pz, w), pz = pf[2]; e.g. {(5, 0): (6, 10), (5, 1): (6, 10)}
 tau_skip = 2
 w_plot_list = [0, 1, 2, 3, 4, 5, 6, 8]
 
