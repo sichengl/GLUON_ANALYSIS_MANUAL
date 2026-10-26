@@ -2,7 +2,7 @@
 #SBATCH -A gluonp0.lq2_gpu
 #SBATCH -p lq2_gpu
 #SBATCH --qos=normal
-#SBATCH -t 9:00:00
+#SBATCH -t 12:00:00
 #SBATCH -N 1
 #SBATCH -n 4
 #SBATCH --gpus-per-node=4
@@ -20,7 +20,7 @@
 # Array task i measures cfg_list[i] (--n 1): one cfg per task. Only the cfgs whose gauge file is on Fermilab can run: a task whose file is missing
 # stops at the check below, so submit the tasks of the cfgs that are there, e.g. sbatch --array=0-9 ... for the first 10.
 # Time (scaled from the Fermilab final test, cfg 204: inversion pair 3.68 s, k = 0 inversion 1.84 s, sink smearing + contraction 1.08 s per pair):
-# about 19 s per source (2 boosted pairs, 1 k = 0 inversion, 9 sink pairs), so about 5.6 h per cfg; 9 h leaves the margin of the final run.
+# about 19 s per source (2 boosted pairs, 1 k = 0 inversion, 9 sink pairs), so about 5.6 h per cfg; 12 h for safety (lq2_gpu accepts 18 h).
 # Output about 4.2 GB per cfg (0.53 GB per t_src), 0.85 TB for the 200 cfgs.
 # Every task runs in its own folder testruns/final_<jobid>_<task>, on copies of the python files; the folder also keeps this sbatch script.
 # A task killed at the time limit can be resubmitted (sbatch --array=<task> ...): the per-t_src parts already on disk are skipped.
