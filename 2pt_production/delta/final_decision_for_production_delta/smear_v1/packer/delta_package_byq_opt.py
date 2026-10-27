@@ -10,6 +10,8 @@
 #Same files as delta_package_byq.py, read faster: each per-cfg file is read once per cfg, in whole contiguous blocks, and every entry of read_plan takes its
 #q and momenta from that copy in memory. The per-cfg files are not chunked, so reading only the needed q or momenta from disk pulled in the whole block anyway,
 #in 64 KiB pieces, once per entry (the plain file 8 times per cfg for 4 sym q).
+#The cfgs are read in parallel by n_workers worker processes, one cfg each at a time, and the main process writes them in the order of cfg_pack, so the
+#files are the same as with one reader. Memory: about 2.5 GB per worker with the proton (0.2 GB pion only); give the batch job about n_workers cores (the main process mostly waits).
 #Only finished cfgs are packed: those with all 12 .h5 files on disk (the merge writes each file under its final name only when it is complete)
 #that open with the same layout as the first one; the others are printed. Running it again later packs every cfg finished by then into new files.
 #Two folders are read: a cfg with all 12 files from the earlier runs (smear_tag ..._paired, arrays (shape, shape, frac, frac, gamma, gamma, ...), before
@@ -17,6 +19,8 @@
 #smear i as shape i with boost i only, so their blocks [a, b, a, b] are read; the packed files are the same either way (source_layout gives the folder of each cfg).
 import os
 import sys
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import h5py
 
@@ -26,10 +30,11 @@ from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, curren
 
 
 #======== what to pack ========
-pack_list = [["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["sym", [0, 2, 0]], ["sym", [0, -2, 0]]]   # (frame, q), q in units of 2pi/L, one set of files per entry; e.g. [["sym", [2, 0, 0]], ["asy", [1, 0, 0]], ["forward", [0, 0, 0]]]
+pack_list = [["forward", [0, 0, 0]], ["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["sym", [0, 2, 0]], ["sym", [0, -2, 0]]]   # (frame, q), q in units of 2pi/L, one set of files per entry; e.g. [["sym", [2, 0, 0]], ["asy", [1, 0, 0]], ["forward", [0, 0, 0]]]
                                    # frame "sym": P = (p_f + p_i)/2 = (0,0,pz); "asy": p_i = (0,0,pz); "forward": q = 0, p_f = p_i = (0,0,pz)
-particle_list = ["pion"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
-project_proton = False             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
+particle_list = ["pion", "proton"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
+project_proton = True             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
+n_workers = 16                     # worker processes reading cfgs in parallel (the main process writes); about 2.5 GB each with the proton, 0.2 GB pion only
 save_dir = "/work/hdd/biqz/sliu54/2pt_production/packed/final_production_byq"      # /work/hdd: /projects is too small
 
 
@@ -153,14 +158,12 @@ def file_name(frame, q, role, particle):
     return f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
 
 filenames = {(i, particle): file_name(frame, q, role, particle) for i, (frame, q, role, _, _, _, _, _) in enumerate(read_plan) for particle in particle_list}
-out = {key: h5py.File(f"{filenames[key]}.tmp", "w") for key in filenames}      # renamed when complete
-dsets = {(key, pt2): out[key].create_dataset(pt2, shape=(n_cfg,) + (pion_shape if key[1] == "pion" else proton_shape), dtype="<c16")
-         for key in out for pt2 in pt2_names}
 src_lists = {name: np.zeros((n_cfg, n), int) for name, n in [("t_src_list", n_tsrc), ("x_src_list", len(delta_params.x_base)),
                                                               ("y_src_list", len(delta_params.y_base)), ("z_src_list", len(delta_params.z_base))]}
 
-for icfg, cfg in enumerate(cfg_pack):
-    print("reading cfg", cfg, flush=True)
+def read_cfg(cfg):
+    #run in a worker process: reads one cfg and returns its source positions and the arrays to write at its row, keyed like dsets
+    src, rows = {}, {}
     for particle, shape in [("pion", pion_shape), ("proton", (n_smear, n_smear, n_gamma, n_gamma, 4, 4, n_tsrc, n_pz, tsep_max))]:
         if particle not in particle_list:
             continue
@@ -171,9 +174,9 @@ for icfg, cfg in enumerate(cfg_pack):
                 with h5py.File(h5_name(case, particle, cfg), "r") as f:
                     if particle == "pion" and i == 0:
                         for name in src_lists:
-                            src_lists[name][icfg] = f["pt2_forward"].attrs[name]
+                            src[name] = f["pt2_forward"].attrs[name]
                     if particle == "proton":
-                        assert np.array_equal(f["pt2_forward"].attrs["t_src_list"], src_lists["t_src_list"][icfg]), f"cfg {cfg}: pion and proton t_src differ"
+                        assert np.array_equal(f["pt2_forward"].attrs["t_src_list"], src["t_src_list"]), f"cfg {cfg}: pion and proton t_src differ"
                     whole[case] = {pt2: read_2pt(f[pt2], cfg_tag[cfg] == old_tag) for pt2 in pt2_names}
             for pt2 in pt2_names:
                 corr[pt2][...] = whole[case][pt2][..., iq, :, :] if ip is None else whole[case][pt2][..., iq, ip, :]     # q index iq; plain case: momenta ip, in the order of pz
@@ -181,7 +184,27 @@ for icfg, cfg in enumerate(cfg_pack):
                 corr["pt2_forward"] = np.einsum("kl,abcdlktpT->abcdtpT", parity_p, corr["pt2_forward"])          # sum_kl parity_p[k,l] M[l,k]
                 corr["pt2_backward"] = -np.einsum("kl,abcdlktpT->abcdtpT", parity_m, corr["pt2_backward"])       # -sum_kl parity_m[k,l] M[l,k]
             for pt2 in pt2_names:
-                dsets[(i, particle), pt2][icfg] = corr[pt2]
+                rows[(i, particle), pt2] = corr[pt2]
+    return cfg, src, rows
+
+#the workers are forked copies of this process, started by map before the output files are opened (so they hold none of them);
+#map hands the cfgs to the workers as they become free and returns the results in the order of cfg_pack
+pool = ProcessPoolExecutor(n_workers, mp_context=multiprocessing.get_context("fork"))
+results = pool.map(read_cfg, cfg_pack)
+
+out = {key: h5py.File(f"{filenames[key]}.tmp", "w") for key in filenames}      # renamed when complete
+dsets = {(key, pt2): out[key].create_dataset(pt2, shape=(n_cfg,) + (pion_shape if key[1] == "pion" else proton_shape), dtype="<c16")
+         for key in out for pt2 in pt2_names}
+
+try:
+    for icfg, (cfg, src, rows) in enumerate(results):
+        for name in src_lists:
+            src_lists[name][icfg] = src[name]
+        for key in rows:
+            dsets[key][icfg] = rows[key]
+        print("packed cfg", cfg, flush=True)
+finally:
+    pool.shutdown(cancel_futures=True)                                # on an error, the cfgs no worker has started are dropped instead of read
 
 dirac = [] if project_proton else ["dirac_sink", "dirac_source"]
 common_attrs = {
