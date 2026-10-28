@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=biqz-delta-gpu
 #SBATCH --partition=gpuA100x4
-#SBATCH --time=48:00:00
+#SBATCH --time=35:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=16
