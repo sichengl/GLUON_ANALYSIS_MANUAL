@@ -13,6 +13,17 @@ from coulomb_smearing import coulomb_boosted_source, coulomb_boosted_sink, coulo
 from pt2_comm_tools import make_eps, release_cupy_cache, log_gpu_memory # tools/pt2_comm_tools.py
 from sepq_2pt_setup_fermilab_final import *  # delta_params (the TwoPtParams of this run), cfg list, smearing operators, momentum tables, notes, paths
 
+import sys, traceback
+from mpi4py import MPI
+
+#STOP ON ERROR: an uncaught error on any rank prints its traceback and kills all ranks of this run at once, so the job ends as FAILED instead of
+#hanging until walltime (PyQUDA's endQuda at exit waits for the other ranks, which are waiting in a collective for this one)
+def abort_on_error(exc_type, exc_value, exc_tb):
+    traceback.print_exception(exc_type, exc_value, exc_tb)
+    sys.stderr.flush()
+    MPI.COMM_WORLD.Abort(1)
+sys.excepthook = abort_on_error
+
 #Fermilab smear test v2: 2pt (pion + proton) in the sepq kinematics with the smearings of smear_list (for now the three of Delta smear_v2: [1.5, 3, 0.8],
 #[1.5, 1.5, 0.8] and [1.5, 1.5, 0]) and three gammas. Every source smearing is inverted once and its solutions are sink smeared with every entry of
 #smear_list, so the files hold the full (3 smearings x 3 gammas) = 9 x 9 matrix for the GEVP. The Fermilab copy of the Delta smear_v2 script
