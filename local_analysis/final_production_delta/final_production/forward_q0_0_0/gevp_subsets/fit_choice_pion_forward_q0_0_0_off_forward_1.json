@@ -1,0 +1,167 @@
+{
+ "choice": {
+  "0": {
+   "subset": "BG3G5_UG5G4_UG3G5",
+   "label": "{B G3G5, U G5G4, U G3G5}",
+   "operators": [
+    2,
+    4,
+    5
+   ],
+   "basis": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "tsep": [
+    6,
+    14
+   ]
+  },
+  "1": {
+   "subset": "BG3G5_UG5G4",
+   "label": "{B G3G5, U G5G4}",
+   "operators": [
+    2,
+    4
+   ],
+   "basis": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "tsep": [
+    6,
+    13
+   ]
+  },
+  "2": {
+   "subset": "BG3G5_UG5G4",
+   "label": "{B G3G5, U G5G4}",
+   "operators": [
+    2,
+    4
+   ],
+   "basis": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "tsep": [
+    6,
+    13
+   ]
+  },
+  "3": {
+   "subset": "UG5_UG5G4",
+   "label": "{U G5, U G5G4}",
+   "operators": [
+    3,
+    4
+   ],
+   "basis": [
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "tsep": [
+    5,
+    12
+   ]
+  },
+  "4": {
+   "subset": "BG5G4_UG5G4",
+   "label": "{B G5G4, U G5G4}",
+   "operators": [
+    1,
+    4
+   ],
+   "basis": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "tsep": [
+    3,
+    10
+   ]
+  },
+  "5": {
+   "subset": "BG5G4",
+   "label": "{B G5G4}",
+   "operators": [
+    1
+   ],
+   "basis": [
+    [
+     0,
+     1
+    ]
+   ],
+   "tsep": [
+    4,
+    10
+   ]
+  },
+  "6": {
+   "subset": "BG5G4",
+   "label": "{B G5G4}",
+   "operators": [
+    1
+   ],
+   "basis": [
+    [
+     0,
+     1
+    ]
+   ],
+   "tsep": [
+    4,
+    10
+   ]
+  }
+ },
+ "ratio_file": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/forward_q0_0_0/gevp_subsets/ratio_subsets_method1_pion_forward_q0_0_0_t01_tref3_fb_TXTXpTYTYm2XYXY_hyp8_3072src_ncfg250.h5",
+ "gevp_file": "/Users/mcp3270/Desktop/GLUON_ANALYSIS_MANUAL/local_analysis/final_production_delta/final_production/forward_q0_0_0/gevp_subsets/gevp_subsets_pion_forward_q0_0_0_t01_tref3_3072src_ncfg250.h5",
+ "kin_tag": "forward_q0_0_0",
+ "frame": "forward",
+ "q": [
+  0,
+  0,
+  0
+ ],
+ "hadron": "pion",
+ "operator": "TXTXpTYTYm2XYXY",
+ "hyp": 8,
+ "direction": "fb",
+ "choice_tag": "off_forward_1"
+}
