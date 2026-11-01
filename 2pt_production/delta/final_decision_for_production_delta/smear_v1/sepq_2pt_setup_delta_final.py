@@ -25,7 +25,7 @@ delta_params.z_base = np.arange(0, delta_params.GLs, 4)     # 8 z               
 #QUDA: grid of 4 GPUs along t, clover Wilson Dirac operator, multigrid solver
 delta_params.grid_size = [1, 1, 1, 4]
 delta_params.mass = -0.05138
-delta_params.tol = 1e-10
+delta_params.tol = 1e-8
 delta_params.maxiter = 1000
 delta_params.clover_coeff_t = 1.04243
 delta_params.clover_coeff_r = 1.04243
