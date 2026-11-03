@@ -76,7 +76,7 @@ delta_params.fb_index = {"pt2_forward": forward_index, "pt2_backward": backward_
 
 
 #======== cfgs, smearing operators and momentum tables (not in the class) ========
-cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 200 * delta_params.cfg_step, delta_params.cfg_step)    # stream e 204, 210, ..., 1398
+cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delta_params.cfg_step, delta_params.cfg_step)    # stream e 204, 210, ..., 1398
 cfg_measure_spacing = 1
 src_phase_sign = -1
 n_spatial_src = len(delta_params.x_base) * len(delta_params.y_base) * len(delta_params.z_base)
