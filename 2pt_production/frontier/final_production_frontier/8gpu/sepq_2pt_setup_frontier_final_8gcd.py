@@ -25,7 +25,7 @@ delta_params.z_base = np.arange(0, delta_params.GLs, 4)     # 8 z               
 #below would give odd coarse time extents; QUDA then halves those blocks itself (warning in the log), as it did once on Delta
 delta_params.grid_size = [1, 1, 1, 8]
 delta_params.mass = -0.05138
-delta_params.tol = 1e-10
+delta_params.tol = 1e-8
 delta_params.maxiter = 1000
 delta_params.clover_coeff_t = 1.04243
 delta_params.clover_coeff_r = 1.04243
