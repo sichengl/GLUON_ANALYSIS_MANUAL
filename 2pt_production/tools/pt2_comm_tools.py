@@ -121,10 +121,11 @@ class TwoPtParams:
 
     #======== sources and run parameters ========
     def make_sources(self, cfgs):
-        #cfgs: cfg numbers; the sources of a cfg are shifted according to its index (cfg - cfg_first) / cfg_step
+        #Sicheng's comments: cfg is the measurement_list, that is, the cfgs to be measured. 
+        #ncfg is the index of measured cfgs in the cfg_list
         ncfg, rest = np.divmod(np.asarray(cfgs) - self.cfg_first, self.cfg_step)
         assert np.all(rest == 0), f"every cfg must be cfg_first + cfg_step * n (cfg_first {self.cfg_first}, cfg_step {self.cfg_step})"
-        #a shift coprime to the lattice size is coprime to the source spacing too, so the sources go through as many different sets as possible
+        #check if they are coprime to lattice lengths
         assert math.gcd(self.temporal_shift, self.GLt) == 1, f"temporal_shift {self.temporal_shift} is not coprime to GLt {self.GLt}"
         assert math.gcd(self.spatial_shift, self.GLs) == 1, f"spatial_shift {self.spatial_shift} is not coprime to GLs {self.GLs}"
         t_src = (self.t_base[None, :] + self.temporal_shift*ncfg[:, None]) % self.GLt

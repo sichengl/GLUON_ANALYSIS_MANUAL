@@ -65,7 +65,7 @@ pion_sym_non0xi, proton_sym_non0xi_dirac = corr_dic["pion_sym_non0xi"], corr_dic
 pion_asy_0xi,    proton_asy_0xi_dirac    = corr_dic["pion_asy_0xi"],    corr_dic["proton_asy_0xi_dirac"]
 pion_asy_non0xi, proton_asy_non0xi_dirac = corr_dic["pion_asy_non0xi"], corr_dic["proton_asy_non0xi_dirac"]
 pion_plain,      proton_plain_dirac      = corr_dic["pion_plain"],      corr_dic["proton_plain_dirac"]
-#column index tables on this GPU: they pick each case's p_f out of the sums over the 99 momenta of pf_plain_list
+#These are the index arrarys of pf from plain 
 pf_forward_index    = cp.asarray(pf_forward_index_list)       # (1, 7)
 pf_sym_0xi_index    = cp.asarray(pf_sym_0xi_index_list)       # (8, 7)
 pf_sym_non0xi_index = cp.asarray(pf_sym_non0xi_index_list)    # (18, 7)
