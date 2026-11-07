@@ -1,0 +1,7 @@
+pz 0: BG5 BG5G4 BG3G5 UG5 UG5G4 UG3G5, t0 3, t_ref 5
+pz 1: BG3G5 UG5G4, t0 3, t_ref 5
+pz 2: UG5G4 UG3G5, t0 3, t_ref 5
+pz 3: UG5G4 UG3G5, t0 3, t_ref 5
+pz 4: BG3G5 UG5G4, t0 3, t_ref 5
+pz 5: BG5G4 UG3G5, t0 3, t_ref 5
+pz 6: BG3G5 UG3G5, t0 3, t_ref 5
