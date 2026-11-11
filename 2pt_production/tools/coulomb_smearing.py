@@ -37,39 +37,6 @@ def array_module(a):
     return numpy
 
 
-# ---------------- layout: PyQUDA even-odd  <->  lexicographic ----------------
-# even-odd: data[parity, t, z, y, x // 2, ...] with parity = (x + y + z + t) % 2 in local coordinates
-# lexico:   data[t, z, y, x, ...]
-
-
-def to_lexico(data_evenodd):
-    xp = array_module(data_evenodd)
-    _, Lt, Lz, Ly, Lx_half = data_evenodd.shape[:5]
-    extra = data_evenodd.ndim - 5
-    t = xp.arange(Lt).reshape(Lt, 1, 1)
-    z = xp.arange(Lz).reshape(1, Lz, 1)
-    y = xp.arange(Ly).reshape(1, 1, Ly)
-    row_is_even = ((t + z + y) % 2 == 0).reshape(Lt, Lz, Ly, 1, *([1] * extra))  # site x = 0 of this row is even
-    data_lexico = xp.empty((Lt, Lz, Ly, 2 * Lx_half, *data_evenodd.shape[5:]), data_evenodd.dtype)
-    data_lexico[:, :, :, 0::2] = xp.where(row_is_even, data_evenodd[0], data_evenodd[1])
-    data_lexico[:, :, :, 1::2] = xp.where(row_is_even, data_evenodd[1], data_evenodd[0])
-    return data_lexico
-
-
-def to_evenodd(data_lexico):
-    xp = array_module(data_lexico)
-    Lt, Lz, Ly, Lx = data_lexico.shape[:4]
-    extra = data_lexico.ndim - 4
-    t = xp.arange(Lt).reshape(Lt, 1, 1)
-    z = xp.arange(Lz).reshape(1, Lz, 1)
-    y = xp.arange(Ly).reshape(1, 1, Ly)
-    row_is_even = ((t + z + y) % 2 == 0).reshape(Lt, Lz, Ly, 1, *([1] * extra))
-    data_evenodd = xp.empty((2, Lt, Lz, Ly, Lx // 2, *data_lexico.shape[4:]), data_lexico.dtype)
-    data_evenodd[0] = xp.where(row_is_even, data_lexico[:, :, :, 0::2], data_lexico[:, :, :, 1::2])
-    data_evenodd[1] = xp.where(row_is_even, data_lexico[:, :, :, 1::2], data_lexico[:, :, :, 0::2])
-    return data_evenodd
-
-
 # ---------------- the smearing kernel and its two uses, on plain arrays ----------------
 
 
@@ -109,15 +76,15 @@ def source_lexico(xp, local_size, t_offset, kvec, src_pos, rho_T, rho_z):
     return data
 
 
-def sink_smear_evenodd(data_evenodd, spatial_size, kvec, rho_T, rho_z):
+def sink_smear_evenodd(latt_info, data_evenodd, kvec, rho_T, rho_z):
     """prop_smeared(x) = sum_y K(x - y) prop(y) on every time slice, done as a product of 3D FFTs."""
     xp = array_module(data_evenodd)
-    kernel_ft = xp.fft.fftn(boosted_gaussian_kernel(xp, spatial_size, kvec, rho_T, rho_z))
-    prop_ft = xp.fft.fftn(to_lexico(data_evenodd), axes=(1, 2, 3))
+    kernel_ft = xp.fft.fftn(boosted_gaussian_kernel(xp, latt_info.size[:3], kvec, rho_T, rho_z))
+    prop_ft = xp.fft.fftn(latt_info.lexico(data_evenodd, False, backend="cupy"), axes=(1, 2, 3))
     prop_ft *= kernel_ft[None, :, :, :, None, None, None, None]
     smeared = xp.fft.ifftn(prop_ft, axes=(1, 2, 3))
     del prop_ft
-    return to_evenodd(smeared)
+    return latt_info.evenodd(smeared, False, backend="cupy")
 
 
 def squared_distance(xp, spatial_size, src_pos):
@@ -155,14 +122,14 @@ def coulomb_boosted_source(latt_info, kvec, src_pos, rho_T, rho_z):
 
     _check_grid(latt_info)
     data = source_lexico(cupy, latt_info.size, latt_info.gt * latt_info.Lt, kvec, src_pos, rho_T, rho_z)
-    return LatticePropagator(latt_info, to_evenodd(data))
+    return LatticePropagator(latt_info, latt_info.evenodd(data, False, backend="cupy"))
 
 
 def coulomb_boosted_sink(latt_info, propagator, kvec, rho_T, rho_z):
     from pyquda.field import LatticePropagator
 
     _check_grid(latt_info)
-    return LatticePropagator(latt_info, sink_smear_evenodd(propagator.data, latt_info.size[:3], kvec, rho_T, rho_z))
+    return LatticePropagator(latt_info, sink_smear_evenodd(latt_info, propagator.data, kvec, rho_T, rho_z))
 
 
 def mean_radius(latt_info, propagator, src_pos):
@@ -184,10 +151,8 @@ def mean_radius(latt_info, propagator, src_pos):
     t_local = src_pos[3] - latt_info.gt * latt_info.Lt
     r = 0.0
     if 0 <= t_local < latt_info.Lt:
-        slice_evenodd = propagator.data[:, t_local : t_local + 1]
-        if t_local % 2 == 1:
-            slice_evenodd = slice_evenodd[::-1]  # to_lexico takes this one slice as t = 0, so an odd slice has its parities swapped
-        norm, moment = radius_moments_lexico(to_lexico(slice_evenodd)[0], src_pos)
+        slice_lexico = latt_info.lexico(propagator.data, False, backend="cupy")[t_local]  # [z, y, x, spin, spin, color, color]
+        norm, moment = radius_moments_lexico(slice_lexico, src_pos)
         r = (moment / norm) ** 0.5
     return latt_info.mpi_comm.allreduce(r)  # r on the GPU that holds t0, 0 on the others
 
@@ -205,7 +170,7 @@ def coulomb_gauge_theta(latt_info, gauge):
     xp = array_module(gauge.data)
     D = 0
     for i in range(3):
-        U_i = to_lexico(gauge.data[i])  # [t, z, y, x, color, color]; direction i = x, y, z lives on array axis 3, 2, 1
+        U_i = latt_info.lexico(gauge.data[i], False, backend="cupy")  # [t, z, y, x, color, color]; direction i = x, y, z lives on array axis 3, 2, 1
         D = D + xp.roll(U_i, 1, axis=3 - i) - U_i  # U_i(x - i) - U_i(x)
     Delta = D - D.conj().swapaxes(-1, -2)
     Delta = Delta - (xp.trace(Delta, axis1=-2, axis2=-1) / Nc)[..., None, None] * xp.eye(Nc)
