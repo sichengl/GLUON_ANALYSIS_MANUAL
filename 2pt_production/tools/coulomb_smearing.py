@@ -167,10 +167,10 @@ def coulomb_gauge_theta(latt_info, gauge):
     Every rank must call it: the sum over time slices is an allreduce.
     """
     _check_grid(latt_info)
-    xp = array_module(gauge.data)
     D = 0
     for i in range(3):
         U_i = latt_info.lexico(gauge.data[i], False, backend="cupy")  # [t, z, y, x, color, color]; direction i = x, y, z lives on array axis 3, 2, 1
+        xp = array_module(U_i)  # from U_i, not from gauge.data: gauge.data is a numpy array on the host, U_i a cupy array, and xp.eye below must be of U_i's kind
         D = D + xp.roll(U_i, 1, axis=3 - i) - U_i  # U_i(x - i) - U_i(x)
     Delta = D - D.conj().swapaxes(-1, -2)
     Delta = Delta - (xp.trace(Delta, axis1=-2, axis2=-1) / Nc)[..., None, None] * xp.eye(Nc)
