@@ -121,7 +121,7 @@ opt_max_steps = 100
 
 #======== waiting for the other nodes ========
 opt_wait_minutes = 60               # a node stops with an error if the file it waits for does not come within this time
-opt_start_wait_minutes = 720        # the same for the first two waits of a node, when the other nodes may still be in the queue
+opt_start_wait_minutes = 720        # the same for the first two waits of a node (long because the nodes of a job array could still be in the queue; in ONE job all nodes start together)
 opt_poll_seconds = 5                # how often a waiting node looks at the disk
 
 

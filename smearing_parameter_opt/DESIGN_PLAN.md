@@ -9,7 +9,7 @@ without fits, while the noise stays below a cut. Written 2026-11-11. Not yet run
 |---|---|
 | `delta_test/opt_setup_delta.py` | **Every choice**: cfgs, sources, starting table, gammas, score, noise cut, step sizes, paths |
 | `delta_test/opt_worker_delta.py` | Runs on one node for one cfg, for the whole run. Node 0 also does the check |
-| `delta_test/opt_worker_delta.sh` | Job array, 10 tasks = 10 nodes. Copy of the Delta production job script |
+| `delta_test/opt_worker_delta.sh` | ONE job with 10 nodes, one `srun` per node (the tasks of a job array did not start together). From the Delta production job script |
 | `delta_one_gaussian/` | The simple first case: ONE Gaussian starting at the production kernel (rho_T, rho_z, mom_frac tuned), G5G4 only. Copies of the three `delta_test` files with their own names; only the starting table, the gammas, the run tag and the file names differ |
 | `frontier_production/` | Frontier, 800 nodes (one stream-e cfg per node, 8 GCDs each), started through Flux. 13 Gaussians, G5G4, pz 6, noise from the cfgs, and the rule for lost nodes. The choices are listed in `FRONTIER_DECISIONS.pdf` |
 | `frontier_test/` | The same on 10 nodes for 12 steps, to test the Frontier version before the 800-node job |
@@ -80,17 +80,17 @@ Only through small files in `opt_dir`:
     theta/theta_0007.json          the table of step 7 (written by node 0)
     corr/step_0007/worker_03.npz   C[src, fb, gamma_sink, gamma_source, pz, w, tau] of node 3 (w = 0 correlator, w >= 1 derivatives)
     state.json                     what node 0 needs for a restart, and the history of all steps
-    status.log                     the status text of every step (also in the job output of task 0)
+    status.log                     the status text of every step (also in the log of worker 0, logs/smear_opt_<job>_0.out)
     STOP                           written when the run is over: all nodes end
 
-One-node test: `opt_cfg_index = [0]`, a new `opt_run_tag`, `sbatch --array=0`. With one cfg the errors come from the spread
+One-node test: `opt_cfg_index = [0]`, a new `opt_run_tag`, `sbatch --nodes=1`. With one cfg the errors come from the spread
 over its 16 sources (the status says so); good for testing the code and the timings, not for results.
 
 Lost nodes (many-node runs only, settings `opt_max_lost`, `opt_straggler_fraction`, `opt_straggler_minutes`): a node that fails at the start,
 or does not deliver a step in time, gets a file in `lost/` and is out for the rest of the run. Node 0 then measures the reference, the accepted
 point and a running scan again without its cfg, so every comparison uses the same cfgs. Without these settings every node must deliver.
 
-Restart: `sbatch` again. Every node continues at the first step it has not written. A new run needs a new `opt_run_tag`.
+Restart: `sbatch` again. Every node continues at the first step it has not written. If one node ends with an error the job script stops the whole job. A new run needs a new `opt_run_tag`.
 
 ## Laptop checks (results only, no timing)
 

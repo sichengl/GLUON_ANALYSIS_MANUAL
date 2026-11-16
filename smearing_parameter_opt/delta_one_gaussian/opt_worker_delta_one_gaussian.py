@@ -119,7 +119,7 @@ while True:
 
     #WAIT for the kernel table of this step. Rank 0 looks at the disk and tells the other ranks. On node 0 the table comes from its own
     #check of the previous step, which first waits for the result files of all nodes.
-    #The first two waits of a node can be long (the other nodes may still be in the queue): opt_start_wait_minutes; later ones opt_wait_minutes.
+    #The first two waits of a node use opt_start_wait_minutes, later ones opt_wait_minutes.
     table = None
     if rank == 0:
         wait_minutes = opt_start_wait_minutes if n_done < 2 else opt_wait_minutes

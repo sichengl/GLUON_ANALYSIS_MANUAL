@@ -2,7 +2,7 @@
 #SBATCH --account=biqz-delta-gpu
 #SBATCH --partition=gpuA100x4
 #SBATCH --time=12:00:00
-#SBATCH --nodes=1
+#SBATCH --nodes=10
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=16
 #SBATCH --gpus-per-node=4
@@ -10,19 +10,21 @@
 #SBATCH --exclusive
 #SBATCH --no-requeue
 #SBATCH -J smear_opt
-#SBATCH --array=0-9
-#SBATCH -o ./logs/smear_opt_%A_%a.out
-#SBATCH -e ./logs/smear_opt_%A_%a.err
+#SBATCH -o ./logs/smear_opt_%j.out
+#SBATCH -e ./logs/smear_opt_%j.err
 
 # ONE-GAUSSIAN run (production kernel as the start, rho_T, rho_z and mom_frac tuned, G5G4 only): copy of ../delta_test/opt_worker_delta.sh,
 # only the three file names below differ.
-# Smearing parameter optimization: 10 array tasks = 10 nodes, one stream-e cfg each (cfg_list[opt_cfg_index[task]] of the setup), 16 sources per cfg,
-# 4 A100-40GB GPUs per node, grid [1,1,1,4]. Every task keeps its cfg (gauge fixing, HYP and multigrid setup once) and repeats: wait for the kernel
-# table of the step, invert the 16 sources, contract, write a small file. Task 0 also checks every step and writes the next table; ITS .out FILE
-# SHOWS THE STATUS OF EVERY STEP (the same text is in opt_dir/status.log). The run ends by itself (STOP file) or at the time limit.
-# The job script of the Delta production (smear_v2) with: the optimization files, --worker instead of --icfg/--n, array 0-9.
-# Restart: sbatch again (all 10 tasks, or only the missing ones with --array=...): every task continues at the first step it has not written.
-# A new run needs a new opt_run_tag in the setup.
+# Smearing parameter optimization: ONE job with 10 nodes, so that all nodes run at the same time (they wait for each other at every step; the tasks
+# of a job array are started one by one by Slurm and did not run together). Worker w is node w of the job and holds one stream-e cfg
+# (cfg_list[opt_cfg_index[w]] of the setup), 16 sources per cfg, 4 A100-40GB GPUs per node, grid [1,1,1,4]. Every worker keeps its cfg (gauge fixing,
+# HYP and multigrid setup once) and repeats: wait for the kernel table of the step, invert the 16 sources, contract, write a small file. Worker 0 also
+# checks every step and writes the next table; ITS .out FILE (logs/smear_opt_<job>_0.out) SHOWS THE STATUS OF EVERY STEP (the same text is in
+# opt_dir/status.log). The run ends by itself (STOP file) or at the time limit; if one worker ends with an error, the whole job is stopped.
+# The job script of the Delta production (smear_v2) with: the optimization files, 10 nodes with one srun per node (--worker w) instead of one
+# array task per cfg (--icfg/--n).
+# --nodes must be the number of workers in the setup, len(opt_cfg_index). A test on fewer nodes: shorten opt_cfg_index and sbatch --nodes=<number>.
+# Restart: sbatch again: every worker continues at the first step it has not written. A new run needs a new opt_run_tag in the setup.
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
@@ -40,12 +42,12 @@ for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM" "$KERNEL" "$CONTRACT" "$CHECK"; do
     [ -f "$f" ] || { echo "missing $f in $SLURM_SUBMIT_DIR"; exit 1; }
 done
 
-# run folder: copies of exactly what runs (python imports these copies), this sbatch script, links to the two log files
-RUNDIR=/projects/biqz/$USER/smearing_parameter_opt/testruns/opt_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}
+# run folder, ONE for all workers: copies of exactly what runs (python imports these copies), this sbatch script, links to the log files
+RUNDIR=/projects/biqz/$USER/smearing_parameter_opt/testruns/opt_${SLURM_JOB_ID}
 mkdir -p "$RUNDIR" || exit 1
 cp "$SCRIPT" "$SETUP" "$SMEAR" "$COMM" "$KERNEL" "$CONTRACT" "$CHECK" "$RUNDIR"/ || exit 1
 cp "$0" "$RUNDIR/$SUBMIT" || cp "$SUBMIT" "$RUNDIR/$SUBMIT"      # $0 is the copy of this script that Slurm is running
-ln -s "$SLURM_SUBMIT_DIR/logs/smear_opt_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "$SLURM_SUBMIT_DIR/logs/smear_opt_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err" "$RUNDIR"/
+ln -s "$SLURM_SUBMIT_DIR/logs/smear_opt_${SLURM_JOB_ID}.out" "$SLURM_SUBMIT_DIR/logs/smear_opt_${SLURM_JOB_ID}.err" "$RUNDIR"/
 date; hostname
 
 # environment: conda env pyquda, QUDA_PATH, LD_LIBRARY_PATH (Cray PE defaults: PrgEnv-gnu, cray-mpich, cudatoolkit)
@@ -60,26 +62,41 @@ export QUDA_ENABLE_P2P=3
 export QUDA_ENABLE_DEVICE_MEMORY_POOL=0
 mkdir -p "$QUDA_RESOURCE_PATH"
 
-# run parameters: array task i is node (worker) i and holds cfg_list[opt_cfg_index[i]] of the setup
-WORKER=${SLURM_ARRAY_TASK_ID:-0}
-# fail fast if this task's gauge file is not there (the setup builds the name from gauge_file_prefix, cfg_list and opt_cfg_index)
-GAUGE=$(python -c "from ${SETUP%.py} import cfg_list, opt_cfg_index, gauge_file_prefix; print(f'{gauge_file_prefix}.{cfg_list[opt_cfg_index[$WORKER]]}')")
-[ -f "$GAUGE" ] || { echo "missing gauge file $GAUGE"; exit 1; }
-echo "worker $WORKER: gauge file $GAUGE"
+# run parameters: worker w runs on node w of this job (NODES[w]) and holds cfg_list[opt_cfg_index[w]] of the setup
+NODES=($(scontrol show hostnames "$SLURM_JOB_NODELIST"))      # the names of the nodes of this job, as a list
+NWORKERS=$(python -c "from ${SETUP%.py} import opt_cfg_index; print(len(opt_cfg_index))")
+[ "${#NODES[@]}" = "$NWORKERS" ] || { echo "this job has ${#NODES[@]} nodes, the setup has $NWORKERS workers (opt_cfg_index): they must be equal"; exit 1; }
+# fail fast if a gauge file is not there (the setup builds the name from gauge_file_prefix, cfg_list and opt_cfg_index)
+for ((WORKER = 0; WORKER < NWORKERS; WORKER++)); do
+    GAUGE=$(python -c "from ${SETUP%.py} import cfg_list, opt_cfg_index, gauge_file_prefix; print(f'{gauge_file_prefix}.{cfg_list[opt_cfg_index[$WORKER]]}')")
+    [ -f "$GAUGE" ] || { echo "missing gauge file $GAUGE"; exit 1; }
+    echo "worker $WORKER: node ${NODES[$WORKER]}, gauge file $GAUGE"
+done
 # versions, and the modules the script imports, without starting MPI outside srun (importing pyquda calls MPI_Init)
 python -c "import importlib.metadata as m; print(*(f'{p} {m.version(p)}' for p in ['pyquda', 'pyquda-utils', 'cupy-cuda13x', 'mpi4py', 'numpy', 'opt_einsum']), sep=', ')" || exit 1
 nvidia-smi -L
 nvidia-smi topo -m
 
-# GPU memory of all 4 GPUs every 2 s, to see the peak (QUDA and cupy together) on the 40 GB A100s
-nvidia-smi --query-gpu=timestamp,index,memory.used,memory.total --format=csv,noheader -lms 2000 > "$RUNDIR/gpu_mem_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.csv" &
+# GPU memory of all 4 GPUs every 2 s, to see the peak (QUDA and cupy together) on the 40 GB A100s. Only on the node this script runs on, the first
+# node of the job = worker 0 (hostname above); the other nodes do the same work.
+nvidia-smi --query-gpu=timestamp,index,memory.used,memory.total --format=csv,noheader -lms 2000 > "$RUNDIR/gpu_mem_${SLURM_JOB_ID}_0.csv" &
 MONITOR=$!
 
-# cray-mpich has Slurm PMI: launch with srun. --gpu-bind=none: PyQUDA gives node-local rank i GPU i, so every rank must see all 4 GPUs.
+# cray-mpich has Slurm PMI: launch with srun, ONE srun per worker, all started at the same time (the & at the end runs each in the background).
+# -N 1 -n 4 -w node: the 4 ranks of worker w on node w of the job. --gpu-bind=none: PyQUDA gives node-local rank i GPU i, so every rank must see all 4 GPUs.
 # mask_cpu puts rank i on the 16 cores next to GPU i (Delta gpuA100x4: GPU0 cores 48-63, GPU1 32-47, GPU2 16-31, GPU3 0-15; check with nvidia-smi topo -m above)
-srun -n 4 --gpu-bind=none --cpu-bind=mask_cpu:0xffff000000000000,0xffff00000000,0xffff0000,0xffff \
-    python -m mpi4py "$SCRIPT" --worker $WORKER     # -m mpi4py: an exception on any rank aborts all ranks
-STATUS=$?                                             # exit code of the run, so that sacct shows FAILED instead of COMPLETED when python fails
+# Every worker has its own log, logs/smear_opt_<job>_<worker>.out and .err (linked in the run folder). -m mpi4py: an exception on any rank aborts all ranks of that worker.
+# A worker that ends with an error can never deliver its steps and the others would only wait for it: "kill $$" then ends this script ($$ is the
+# process number of this script), and when the job script ends Slurm stops the job with all its workers.
+PIDS=""
+for ((WORKER = 0; WORKER < NWORKERS; WORKER++)); do
+    LOG=$SLURM_SUBMIT_DIR/logs/smear_opt_${SLURM_JOB_ID}_${WORKER}
+    ln -s "$LOG.out" "$LOG.err" "$RUNDIR"/
+    ( srun -N 1 -n 4 -w "${NODES[$WORKER]}" --gpu-bind=none --cpu-bind=mask_cpu:0xffff000000000000,0xffff00000000,0xffff0000,0xffff \
+          python -m mpi4py "$SCRIPT" --worker $WORKER > "$LOG.out" 2> "$LOG.err" \
+      || { echo "worker $WORKER on ${NODES[$WORKER]} ended with an error at $(date): stopping the job"; kill $$; } ) &
+    PIDS="$PIDS $!"                                   # the process numbers of the 10 background commands
+done
+wait $PIDS                                            # until every worker has ended (STOP file): reached only if none of them failed
 kill $MONITOR
 date
-exit $STATUS
