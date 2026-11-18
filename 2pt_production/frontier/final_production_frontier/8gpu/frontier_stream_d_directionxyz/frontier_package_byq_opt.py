@@ -6,8 +6,8 @@
 #  C2pi:    the plain q = 0 2pt at the source momenta p_i(pz) = p_f(pz) - q: denominators of the ratio and the GEVP at the source
 #Frame "forward" (q = 0) writes the C3input file only: at q = 0 that file is also the C2pf and the C2pi file.
 #Every file holds one q and has no q axis: to get a q axis, stack the C3input files of several (frame, q).
-#Run it on Fermilab, CPU only, with the setup next to it: sbatch --export=ALL,BOOST_DIRECTION=x fermilab_package_byq_opt.sh
-#(the Fermilab copy of delta/final_decision_for_production_delta/smear_v1_directionxyz/delta_package_byq_opt.py: only the setup import and save_dir differ)
+#Run it on Frontier, CPU only, with the setup next to it: BOOST_DIRECTION=x sbatch frontier_package_byq_opt.sh (the Frontier stream-d copy of
+#delta/final_decision_for_production_delta/smear_v1_directionxyz/delta_package_byq_opt.py: only the tools path, the setup import and save_dir differ)
 #Direction version (smear_v1_directionxyz): ONE packer for the three boost directions. --boost_direction x, y or z (default z) says which run to pack.
 #Every place that depends on it is marked DIRECTION. With z it packs what smear_v1_running/packer/delta_package_byq_opt.py packs.
 #pack_list is the same for every direction: the q of the files are labels as seen from the boost direction, (a, b, c) with c along the boost.
@@ -30,8 +30,8 @@ import numpy as np
 import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, three levels up from this folder
-from sepq_2pt_setup_fermilab_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
+sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, four levels up from this folder
+from sepq_2pt_setup_frontier_final_8gcd import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--boost_direction", type=str, default="z", choices=["x", "y", "z"])      # lattice axis of the boost of the run to pack
@@ -45,19 +45,19 @@ pack_list = [["forward", [0, 0, 0]], ["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["
 particle_list = ["pion", "proton"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
 project_proton = True             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
 n_workers = 16                     # worker processes reading cfgs in parallel (the main process writes); about 2.5 GB each with the proton, 0.2 GB pion only
-save_dir = "/lustre2/gluonp0/sliu1/2pt_production/packed/final_production_byq_streame"      #STREAM: one folder per stream: the file names do not say the stream
+save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/final_production_byq_streamd"      # stream d only: the file names do not say the stream
 
 
 tsep_max = delta_params.tsep_max
 n_src = len(delta_params.t_base) * n_spatial_src
 assert smear_tag.endswith("_smear"), f"smear_tag {smear_tag}: expected the current tag, ending in _smear"
 old_tag = smear_tag[:-len("_smear")] + "_paired"                     # the earlier runs, separate shape and frac axes
-#DIRECTION: the folders to read. z: the earlier runs (_paired) and the current runs (_smear), as before.
-#x and y: only their own folder (_smear_boostx or _smear_boosty). The _paired folder holds z data and must not be read for them
+#DIRECTION: the folders to read. z: the runs of the old code (_paired, then _smear) and of the direction code (_smear_direction_z).
+#x and y: only their own folder (_smear_direction_x or _smear_direction_y). The other folders hold z data and must not be read for them
 if boost_direction == "z":
-    tag_list = [old_tag, smear_tag]
+    tag_list = [old_tag, smear_tag, f"{smear_tag}_direction_z"]      # the packed names keep _smear: they hold cfgs of the old and of the direction code
 if boost_direction == "x" or boost_direction == "y":
-    smear_tag = f"{smear_tag}_boost{boost_direction}"                # the tag of the job script; it is also in the names of the packed files
+    smear_tag = f"{smear_tag}_direction_{boost_direction}"           # the tag of the job script; it is also in the names of the packed files
     tag_list = [smear_tag]
 gevp_dirs = {tag: f"{current_dir}/{tag}_GEVP_sepq_{n_src}src_phyp_fb_tsep{tsep_max}" for tag in tag_list}     # gevp_dir of the job script
 all_cases = ["forward", "sym_0xi", "sym_non0xi", "asy_0xi", "asy_non0xi", "plain"]
@@ -231,7 +231,7 @@ finally:
 dirac = [] if project_proton else ["dirac_sink", "dirac_source"]
 #DIRECTION: the folders the cfgs were read from
 if boost_direction == "z":
-    source_files_note = f"{gevp_dirs[old_tag]} for the cfgs with source_layout paired, {gevp_dirs[smear_tag]} for those with source_layout smear"
+    source_files_note = f"{gevp_dirs[old_tag]} for the cfgs with source_layout paired, {gevp_dirs[smear_tag]} and {gevp_dirs[smear_tag + '_direction_z']} for those with source_layout smear"
 if boost_direction == "x" or boost_direction == "y":
     source_files_note = gevp_dirs[smear_tag]
 common_attrs = {

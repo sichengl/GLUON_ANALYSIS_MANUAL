@@ -20,8 +20,8 @@
 # Array task i measures cfg_list[i], cfg_list[i+1], cfg_list[i+2] (--n 3): 267 tasks for the 800 cfgs, the last one has 2 cfgs.
 # Direction version (smear_v1_directionxyz): the lattice axis of the boost comes from BOOST_DIRECTION (x, y or z; z if it is not set):
 #     BOOST_DIRECTION=x sbatch 2pt_coulomb_boosted_sepq_3072srcs_delta_final.sh        first test, one task:  BOOST_DIRECTION=x sbatch --array=0 ...
-# x and y write to their own folders (..._smear_boostx_GEVP_..., ..._smear_boosty_GEVP_...) inside current_dir of the setup. z writes where the
-# running production writes and skips the cfgs that are already there.
+# Each direction writes to its own folder inside current_dir of the setup: ..._smear_direction_x_GEVP_..., ..._smear_direction_y_GEVP_..., ..._smear_direction_z_GEVP_...
+# z does not write into the folder of the running production (the old code, ..._smear_GEVP_...): a cfg the old code has finished is not skipped.
 # Time (from the tuning and stream-e test timings): about 13 s per source (2 x 3.8 s inversions, 4 x (0.17 s sink smearing + 1.06 s contraction),
 # 0.6 s phases), so about 11.4 h per cfg and 34 h per task. Output about 5.6 GB per cfg (0.23 GB per t_src), 1.1 TB for the 200 cfgs.
 # Every task runs in its own folder testruns/final_<jobid>_<task>, on copies of the python files; the folder also keeps this sbatch script.

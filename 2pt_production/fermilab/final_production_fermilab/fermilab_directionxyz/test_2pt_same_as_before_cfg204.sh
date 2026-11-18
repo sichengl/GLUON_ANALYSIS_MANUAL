@@ -23,6 +23,8 @@
 # The test writes to its own folder TEST_DIR, never to a production folder: only the COPY of the setup in the run folder gets another
 # current_dir and the tol of the earlier run (the two sed lines below). Everything else is the job script of this folder.
 #     sbatch test_2pt_same_as_before_cfg204.sh                       z, cfg 204
+#     sbatch --export=ALL,ICFG=413,BOOST_DIRECTION=x,TEST_TOL=1e-8 --time=14:00:00 test_2pt_same_as_before_cfg204.sh
+#                                                                    10-cfg x/y/z test: one whole cfg (here 2682, x) at the production tol
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
@@ -34,7 +36,7 @@ COMM=../../../tools/pt2_comm_tools.py          # the shared TwoPtParams class, i
 ICFG=${ICFG:-0}                                # position in cfg_list of the cfg to test: 0 = cfg 204
 BOOST_DIRECTION=${BOOST_DIRECTION:-z}          # lattice axis of the boost: z for the comparison with the earlier run
 TEST_DIR=/lustre2/gluonp0/sliu1/2pt_production/test_directionxyz      # output of the test
-TEST_TOL=1e-10                                 # solver tol of the earlier run of cfg 204 (its setup copy: testruns/final_1349355_0/sepq_2pt_setup_fermilab_final.py)
+TEST_TOL=${TEST_TOL:-1e-10}                    # solver tol: 1e-10 = the earlier run of cfg 204 (its setup copy: testruns/final_1349355_0/sepq_2pt_setup_fermilab_final.py); 1e-8 = production
 
 # fail fast if a file the script imports is missing
 for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM"; do

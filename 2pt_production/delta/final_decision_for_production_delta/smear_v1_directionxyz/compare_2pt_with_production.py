@@ -23,8 +23,8 @@ parser.add_argument("--prod_dir", type=str, default="/work/hdd/biqz/sliu54/2pt_p
 parser.add_argument("--threshold", type=float, default=1e-6)
 args = parser.parse_args()
 
-#the cfg folder of the test and of the production. "_smear_GEVP": the z names; the x and y folders (_smear_boostx_GEVP) are not matched
-test_folders = glob.glob(f"{args.test_dir}/*_smear_GEVP_sepq_*/cfg{args.cfg}")
+#the cfg folder of the test (z of the direction code: "_smear_direction_z_GEVP") and of the production (the old code: "_smear_GEVP")
+test_folders = glob.glob(f"{args.test_dir}/*_smear_direction_z_GEVP_sepq_*/cfg{args.cfg}")
 prod_folders = glob.glob(f"{args.prod_dir}/*_smear_GEVP_sepq_*/cfg{args.cfg}")
 assert len(test_folders) == 1, f"expected one test folder for cfg {args.cfg} in {args.test_dir}, found {test_folders}"
 assert len(prod_folders) == 1, f"expected one production folder for cfg {args.cfg} in {args.prod_dir}, found {prod_folders}"

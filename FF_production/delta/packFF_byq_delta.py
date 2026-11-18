@@ -20,7 +20,7 @@ args = parser.parse_args()
 smear = args.smear
 boost_direction = args.boost_direction
 
-FF_DIR = Path("/work/hdd/biqz/sliu54/FF_production/FF_data")           # out_dir of FF_covshift_boost_direction_delta.py
+FF_DIR = Path(f"/work/hdd/biqz/sliu54/FF_production/FF_data/direction_{boost_direction}")  # out_dir of FF_covshift_boost_direction_delta.py
 SAVE_DIR = Path("/work/hdd/biqz/sliu54/FF_production/FF_byq")
 
 #======== what to pack ========

@@ -31,7 +31,7 @@ sys.excepthook = abort_on_error
 #
 #Direction version (smear_v1_directionxyz): --boost_direction x, y or z (default z) is the lattice axis of the boost. Every place that depends on it
 #is marked DIRECTION and is an "if boost_direction ==". With z this file does what the script of smear_v1_running/delta_stream_e_running does.
-#Fermilab copy (fermilab_new_stream_running) of delta/final_decision_for_production_delta/smear_v1_directionxyz/2pt_coulomb_boosted_sepq_3072srcs_delta_final.py:
+#Fermilab copy (fermilab_directionxyz) of delta/final_decision_for_production_delta/smear_v1_directionxyz/2pt_coulomb_boosted_sepq_3072srcs_delta_final.py:
 #the only change in this file is the setup import, sepq_2pt_setup_fermilab_final.py (the lustre2 paths and the stream; same 4-GPU grid [1,1,1,4], same physics).
 
 
@@ -71,8 +71,7 @@ if boost_direction == "y":
 if boost_direction == "z":
     pf_plain_lattice = delta_params.pf_plain_list
     boost_direction_note = "boost along lattice z: all labels are lattice labels"
-if boost_direction != "z":
-    smear_tag = f"{smear_tag}_boost{boost_direction}"       # folder and file names: z keeps the names of the running production, x and y get _boostx / _boosty
+smear_tag = f"{smear_tag}_direction_{boost_direction}"      # folder and file names carry the direction (x, y and z): never the names of the old code
 
 
 #======== configurations and sources of this job ========

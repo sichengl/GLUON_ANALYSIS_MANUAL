@@ -31,9 +31,9 @@ parser.add_argument("--old_dir", type=str, default="/lustre2/gluonp0/sliu1/2pt_p
 parser.add_argument("--threshold", type=float, default=1e-6)
 args = parser.parse_args()
 
-#the cfg folder of the test ("_smear_GEVP": the z names; the x and y folders, _smear_boostx_GEVP, are not matched) and of the earlier run,
+#the cfg folder of the test ("_smear_direction_z_GEVP": z of the direction code) and of the earlier run,
 #in the old layout (_paired) or the current one (_smear); only an earlier folder with all 12 .h5 files is used
-test_folders = glob.glob(f"{args.test_dir}/*_smear_GEVP_sepq_*/cfg{args.cfg}")
+test_folders = glob.glob(f"{args.test_dir}/*_smear_direction_z_GEVP_sepq_*/cfg{args.cfg}")
 assert len(test_folders) == 1, f"expected one test folder for cfg {args.cfg} in {args.test_dir}, found {test_folders}"
 test_folder = test_folders[0]
 old_folders = [folder for folder in sorted(glob.glob(f"{args.old_dir}/*_paired_GEVP_sepq_*/cfg{args.cfg}") + glob.glob(f"{args.old_dir}/*_smear_GEVP_sepq_*/cfg{args.cfg}"))

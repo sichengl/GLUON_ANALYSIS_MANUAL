@@ -69,8 +69,7 @@ if boost_direction == "y":
 if boost_direction == "z":
     pf_plain_lattice = delta_params.pf_plain_list
     boost_direction_note = "boost along lattice z: all labels are lattice labels"
-if boost_direction != "z":
-    smear_tag = f"{smear_tag}_boost{boost_direction}"       # folder and file names: z keeps the names of the running production, x and y get _boostx / _boosty
+smear_tag = f"{smear_tag}_direction_{boost_direction}"      # folder and file names carry the direction (x, y and z): never the names of the old code
 
 
 #======== configurations and sources of this job ========

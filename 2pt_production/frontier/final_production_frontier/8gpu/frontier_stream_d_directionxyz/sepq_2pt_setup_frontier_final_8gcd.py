@@ -1,10 +1,6 @@
-#Fermilab final run (fermilab_new_stream_running), stream e for now: the setup of the Delta direction run
-#(delta/final_decision_for_production_delta/smear_v1_directionxyz/sepq_2pt_setup_delta_final.py), the same physics, the same 800 cfgs (204, 210, ..., 4998),
-#the same 3072 sources per cfg, the same solver tol 1e-8 and the same 4-GPU grid [1,1,1,4]. It differs only in the three paths at the bottom.
-#ANOTHER STREAM: change the lines marked STREAM (grep -n STREAM *.py lists them, the packer's save_dir included): gauge_file_prefix, current_dir and,
-#only if its cfgs are not numbered 204, 210, ..., 4998, cfg_first, cfg_step and the 800 of cfg_list (cfg_first also sets the source positions).
-#current_dir MUST change with the stream: the file names do not say the stream, so in a shared folder a cfg number finished in one stream is skipped in the other.
-#The parameter object keeps Delta's name, delta_params, so that the 2pt script differs from Delta's only in its setup import.
+#Frontier final run on stream d, 8 GCDs per run (2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py): the setup of the Delta final run
+#(delta/final_decision_for_production_delta/smear_v1/sepq_2pt_setup_delta_final.py) as it is, except the GPU grid (the 8 GCDs of one node instead of 4 A100s)
+#and the directories. The parameter object keeps Delta's name, delta_params, and Delta's 800 cfg numbers (204, 210, ..., 4998).
 import numpy as np
 from pt2_comm_tools import TwoPtParams          # tools/pt2_comm_tools.py: the job script copies it into the run folder
 
@@ -16,8 +12,8 @@ delta_params = TwoPtParams()
 #lattice and cfgs
 delta_params.GLs = 32
 delta_params.GLt = 96
-delta_params.cfg_first = 204          #STREAM: first cfg of the stream (stream e: 204)
-delta_params.cfg_step = 6             #STREAM: step between cfgs (stream e: 6)
+delta_params.cfg_first = 204
+delta_params.cfg_step = 6
 
 #sources of the first cfg; they move by temporal_shift and spatial_shift from one cfg to the next
 delta_params.t_base = np.arange(0, delta_params.GLt, 4)     # 24 t_src
@@ -25,8 +21,9 @@ delta_params.x_base = np.arange(0, delta_params.GLs, 8)     # 4 x
 delta_params.y_base = np.arange(0, delta_params.GLs, 8)     # 4 y
 delta_params.z_base = np.arange(0, delta_params.GLs, 4)     # 8 z                      # 24 x 4 x 4 x 8 = 3072 sources
 
-#QUDA: grid of 4 GPUs along t, clover Wilson Dirac operator, multigrid solver
-delta_params.grid_size = [1, 1, 1, 4]
+#QUDA: grid of 8 GCDs along t (12 time slices each), clover Wilson Dirac operator, multigrid solver. With 12 time slices the multigrid blocks
+#below would give odd coarse time extents; QUDA then halves those blocks itself (warning in the log), as it did once on Delta
+delta_params.grid_size = [1, 1, 1, 8]
 delta_params.mass = -0.05138
 delta_params.tol = 1e-8
 delta_params.maxiter = 1000
@@ -79,7 +76,7 @@ delta_params.fb_index = {"pt2_forward": forward_index, "pt2_backward": backward_
 
 
 #======== cfgs, smearing operators and momentum tables (not in the class) ========
-cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delta_params.cfg_step, delta_params.cfg_step)    #STREAM: stream e 204, 210, ..., 4998
+cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delta_params.cfg_step, delta_params.cfg_step)    # stream d 204, 210, ..., 4998
 cfg_measure_spacing = 1
 src_phase_sign = -1
 n_spatial_src = len(delta_params.x_base) * len(delta_params.y_base) * len(delta_params.z_base)
@@ -123,6 +120,6 @@ transfer_note = ("P_f = P_i + q (physical momenta, equal to the labels): source 
 
 
 #======== path definitions ========
-current_dir = "/lustre2/gluonp0/sliu1/2pt_production/final_production_3072src_streame"            #STREAM: one folder per stream (the file names do not say the stream)
-quda_resource_path = "/lustre2/gluonp0/sliu1/.cache/quda"                 # the tuning cache of the earlier Fermilab 2pt runs (same lattice and grid)
-gauge_file_prefix = "/lustre2/gluonp0/sliu1/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     #STREAM: stream e, copied from Frontier with Globus
+current_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/final_production_3072src_8gcd_streamd"
+quda_resource_path = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/.cache/quda_final_8gcd"      # its own tuning cache: other GCD counts tune other kernels
+gauge_file_prefix = "/lustre/orion/lgt132/world-shared/DATA/MILC/a09m310/gauge/l3296f211b630m0074m037m440d"     # stream d

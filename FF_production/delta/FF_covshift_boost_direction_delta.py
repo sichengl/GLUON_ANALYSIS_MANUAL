@@ -58,7 +58,7 @@ boost_direction = args.boost_direction
 #======== paths (Delta) ========
 resource_path = "/u/sliu54/QUDA_resources/.cache/quda_FF"                                                # QUDA tuning cache of the one-GPU FF runs (the 2pt runs have their own)
 gauge_prefix = "/work/hdd/biqz/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"             # stream e, the files of the 2pt production
-out_dir = "/work/hdd/biqz/sliu54/FF_production/FF_data"                                                  # /work/hdd: /projects is too small
+out_dir = f"/work/hdd/biqz/sliu54/FF_production/FF_data/direction_{boost_direction}"                     # /work/hdd: /projects is too small
 os.makedirs(resource_path, exist_ok=True)
 os.makedirs(out_dir, exist_ok=True)
 
@@ -233,6 +233,10 @@ for i_cfg,cfg in enumerate(measurement_list):
                     symmetric_corr[i_cfg,i_src,i_sink,i_smear,i_W] += contract("pwtzyx,wtzyxij,wtzyxji->pt", symmetric_phase,Fmunu[i_src],Fmunu_shift[i_sink] )
                     asymmetric_corr[i_cfg,i_src,i_sink,i_smear,i_W] += contract("pwtzyx,wtzyxij,wtzyxji->pt", asymmetric_phase,Fmunu[i_src],Fmunu_shift[i_sink] )
         core.getLogger().info(f"SHIFT #{cfg}: {perf_counter() - s} secs")
+
+        #free this level's GPU arrays before the next HYP or flow step: QUDA allocates its own GPU memory and cannot use what cupy holds
+        del Qij, Qi4, Qij_dagger, Qi4_dagger, Fij, Fi4, tr_Fij, tr_Fi4, Fxy, Fyz, Fxz, Fxt, Fyt, Fzt, Fmunu, Fmunu_shift, gauge_local, gauge_local_conj
+        cp.get_default_memory_pool().free_all_blocks()
 
 
     deviceSynchronize()

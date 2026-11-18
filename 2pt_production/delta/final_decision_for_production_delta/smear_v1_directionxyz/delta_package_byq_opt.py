@@ -51,12 +51,12 @@ tsep_max = delta_params.tsep_max
 n_src = len(delta_params.t_base) * n_spatial_src
 assert smear_tag.endswith("_smear"), f"smear_tag {smear_tag}: expected the current tag, ending in _smear"
 old_tag = smear_tag[:-len("_smear")] + "_paired"                     # the earlier runs, separate shape and frac axes
-#DIRECTION: the folders to read. z: the earlier runs (_paired) and the current runs (_smear), as before.
-#x and y: only their own folder (_smear_boostx or _smear_boosty). The _paired folder holds z data and must not be read for them
+#DIRECTION: the folders to read. z: the runs of the old code (_paired, then _smear) and of the direction code (_smear_direction_z).
+#x and y: only their own folder (_smear_direction_x or _smear_direction_y). The other folders hold z data and must not be read for them
 if boost_direction == "z":
-    tag_list = [old_tag, smear_tag]
+    tag_list = [old_tag, smear_tag, f"{smear_tag}_direction_z"]      # the packed names keep _smear: they hold cfgs of the old and of the direction code
 if boost_direction == "x" or boost_direction == "y":
-    smear_tag = f"{smear_tag}_boost{boost_direction}"                # the tag of the job script; it is also in the names of the packed files
+    smear_tag = f"{smear_tag}_direction_{boost_direction}"           # the tag of the job script; it is also in the names of the packed files
     tag_list = [smear_tag]
 gevp_dirs = {tag: f"{current_dir}/{tag}_GEVP_sepq_{n_src}src_phyp_fb_tsep{tsep_max}" for tag in tag_list}     # gevp_dir of the job script
 all_cases = ["forward", "sym_0xi", "sym_non0xi", "asy_0xi", "asy_non0xi", "plain"]
@@ -230,7 +230,7 @@ finally:
 dirac = [] if project_proton else ["dirac_sink", "dirac_source"]
 #DIRECTION: the folders the cfgs were read from
 if boost_direction == "z":
-    source_files_note = f"{gevp_dirs[old_tag]} for the cfgs with source_layout paired, {gevp_dirs[smear_tag]} for those with source_layout smear"
+    source_files_note = f"{gevp_dirs[old_tag]} for the cfgs with source_layout paired, {gevp_dirs[smear_tag]} and {gevp_dirs[smear_tag + '_direction_z']} for those with source_layout smear"
 if boost_direction == "x" or boost_direction == "y":
     source_files_note = gevp_dirs[smear_tag]
 common_attrs = {

@@ -13,7 +13,7 @@
 #SBATCH -o ./logs/pt2_final_%A_%a.out
 #SBATCH -e ./logs/pt2_final_%A_%a.err
 
-# Final run on Fermilab, direction version (fermilab_new_stream_running): the Delta direction job
+# Final run on Fermilab, direction version (fermilab_directionxyz): the Delta direction job
 # (delta/final_decision_for_production_delta/smear_v1_directionxyz/2pt_coulomb_boosted_sepq_3072srcs_delta_final.sh) with the Fermilab header,
 # environment and launcher of fermilab_smear_3072cfgs/2pt_coulomb_boosted_sepq_3072srcs_fermilab_final.sh. The stream is set in the setup (stream e now,
 # 800 cfgs 204, 210, ..., 4998; for another stream change the lines marked STREAM there). 24t x 4x x 4y x 8z = 3072 sources per cfg, the two tuned
@@ -21,7 +21,7 @@
 # 2pt (pion + proton), sepq kinematics, Coulomb-gauge boosted smearing, 4 GPUs on one lq2_gpu node, grid [1,1,1,4].
 # The lattice axis of the boost comes from BOOST_DIRECTION (x, y or z; z if it is not set):
 #     sbatch --export=ALL,BOOST_DIRECTION=x --array=0 2pt_coulomb_boosted_sepq_3072srcs_fermilab_final.sh
-# x and y write to their own folders (..._smear_boostx_GEVP_..., ..._smear_boosty_GEVP_...) inside current_dir of the setup, z to ..._smear_GEVP_...
+# Each direction writes to its own folder inside current_dir of the setup: ..._smear_direction_x_GEVP_..., ..._smear_direction_y_GEVP_..., ..._smear_direction_z_GEVP_...
 # Array task i measures cfg_list[i] (--n 1): one cfg per task. A task whose gauge file is missing stops at the check below.
 # Time: Fermilab measured 9.94 s per source on cfg 204 at tol 1e-10, about 8.5 h per cfg; 14 h leaves margin (lq2_gpu accepts 18 h and refuses 27 h).
 # Output about 5.6 GB per cfg (0.23 GB per t_src), 0.56 TB per 100 cfgs and direction.
