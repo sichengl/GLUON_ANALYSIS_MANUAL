@@ -336,6 +336,8 @@ The two are done separately; a joint grid (63 bases x 9 time pairs) would take t
 
 ## 10. Report and files
 
+**Moved 2026-11-18 (your request):** every report, fit sheet, `plots*/`, `preview_v2A/` and `results/` named below as in `local_analysis/final_analysis/` is now in `~/Desktop/1365cfg_fit_test/`, with the same names. Only `FIT_PLAN.md`, `FIT_PLAN.pdf` and `scripts/md_to_pdf.py` stay in the repo.
+
 One main report and one fit-sheet file per hadron, in `local_analysis/final_analysis/`:
 
 - **`three_fits_report_{pion,proton}_1365cfg.pdf`** (about 110 pages):
@@ -355,7 +357,7 @@ One main report and one fit-sheet file per hadron, in `local_analysis/final_anal
 
 Other files:
 
-- Scripts, job lists and logs go in `~/Desktop/1365cfg_fit_test/scripts/` (moved out of the code directory on 2026-11-18, at your request); only `scripts/md_to_pdf.py` stays in the repo. The scripts still write results, plots and reports to `local_analysis/final_analysis/` (git-ignored).
+- Scripts, job lists and logs go in `~/Desktop/1365cfg_fit_test/scripts/` (moved out of the code directory on 2026-11-18, at your request); only `scripts/md_to_pdf.py` stays in the repo. The scripts write results, plots and reports to `~/Desktop/1365cfg_fit_test/` as well.
 - Fit results (h5 / npz, git-ignored) go in `local_analysis/final_analysis/results/`.
 - The final result (2026-11-18) per hadron: `results/final/final_{pion,proton}_1365cfg.npz`, with M, D, S and dE of every jackknife sample for each method (D2 average), and E0 of the 2pt fit.
 - The large rebuilt inputs (ratio and M_eff per subset and per basis, about 30 GB) go in `~/Desktop/1365cfg_report/three_fits_inputs/`; they can be rebuilt.
