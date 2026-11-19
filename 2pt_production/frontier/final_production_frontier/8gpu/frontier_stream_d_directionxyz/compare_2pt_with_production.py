@@ -32,7 +32,7 @@ prod_folders = glob.glob(f"{args.prod_dir}/*_smear_GEVP_sepq_*/cfg{args.cfg}")
 assert len(test_folders) == 1, f"expected one test folder for cfg {args.cfg} in {args.test_dir}, found {test_folders}"
 assert len(prod_folders) == 1, f"expected one production folder for cfg {args.cfg} in {args.prod_dir}, found {prod_folders}"
 test_folder, prod_folder = test_folders[0], prod_folders[0]
-assert os.path.basename(os.path.dirname(test_folder)) == os.path.basename(os.path.dirname(prod_folder)), "the test and the production folder names differ"
+assert os.path.basename(os.path.dirname(test_folder)) == os.path.basename(os.path.dirname(prod_folder)).replace("_smear_GEVP_", "_smear_direction_z_GEVP_", 1), "the test folder is not the production folder with _direction_z"
 prod_files = sorted(glob.glob(f"{prod_folder}/*.h5"))
 assert len(prod_files) == 12, f"the production cfg {args.cfg} is not finished: {len(prod_files)} of 12 .h5 files in {prod_folder}"
 print(f"test:       {test_folder}")
@@ -46,7 +46,8 @@ print(f"{'file':28s} {'dataset':13s} {'t_src index':12s} {'numbers':>10s}  {'bit
 for prod_file in prod_files:
     base = os.path.basename(prod_file)                       # {particle}_{smear_tag}_GEVP_sepq_{case}_phyp_fb_tsep20_cfg{cfg}.h5
     label = base.split("_")[0] + " " + base.split("_GEVP_sepq_")[1].split("_phyp_")[0]
-    test_h5 = f"{test_folder}/{base}"
+    test_base = base.replace("_smear_GEVP_", "_smear_direction_z_GEVP_", 1)      # the same file in the test: the direction code adds _direction_z to the name
+    test_h5 = f"{test_folder}/{test_base}"
     f_test = h5py.File(test_h5, "r") if os.path.exists(test_h5) else None      # only there if the test finished the cfg
     with h5py.File(prod_file, "r") as f_prod:
         for pt2 in ["pt2_forward", "pt2_backward"]:
@@ -54,7 +55,7 @@ for prod_file in prod_files:
             n_t = dset.shape[-4]                             # (..., t_src, q, p, tsep)
             used, n, bitwise, max_rel = [], 0, True, 0.0
             for t_idx in range(n_t):
-                part = f"{test_folder}/parts/{base[:-3]}_t{t_idx}_{pt2}.npy"
+                part = f"{test_folder}/parts/{test_base[:-3]}_t{t_idx}_{pt2}.npy"
                 if f_test is not None:
                     new = f_test[pt2][..., t_idx, :, :, :]
                 elif os.path.exists(part):

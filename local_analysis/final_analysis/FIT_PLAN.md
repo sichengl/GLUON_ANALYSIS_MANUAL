@@ -2,7 +2,7 @@
 
 **Status: approved 2026-11-17 (draft 4 as written).** The work follows this plan exactly. Any later change is written here first, with its date.
 
-Changes: draft 2 added the definitions, the window AIC and the operator AIC. Draft 3 adds a second AIC variant (last tsep only) and says that every variant is plotted, saved and reported, even one that is dropped. After approval, 2026-11-17: the pion sGEVP window grid at pz 6 (section 7); later the same day, the matrix element is forced negative in all three methods, after checking that the data are negative everywhere (section 4, "Sign of M"), and all sGEVP fits are redone (reports v2; v1 kept as `*_v1.pdf`); then the forced-sign sGEVP fit of the mean gets a sixth start, the sign-free fit with A clipped below zero (section 4), and all sGEVP fits are redone again (reports v3; v2 kept as `*_v2.pdf`). Draft 4 adds section 1b (how the raw 2pt and FF data become the 3pt, the ratio and M_eff), AIC over the GEVP times (part D2), and E0 per jackknife sample in S. 2026-11-18, after part D: the final result is the average over the GEVP times (D2) for all three methods, not the average over bases (D1); in the pion sGEVP at pz 6 that average runs over t0 2-5 (section 9, "Decision").
+Changes: draft 2 added the definitions, the window AIC and the operator AIC. Draft 3 adds a second AIC variant (last tsep only) and says that every variant is plotted, saved and reported, even one that is dropped. After approval, 2026-11-17: the pion sGEVP window grid at pz 6 (section 7); later the same day, the matrix element is forced negative in all three methods, after checking that the data are negative everywhere (section 4, "Sign of M"), and all sGEVP fits are redone (reports v2; v1 kept as `*_v1.pdf`); then the forced-sign sGEVP fit of the mean gets a sixth start, the sign-free fit with A clipped below zero (section 4), and all sGEVP fits are redone again (reports v3; v2 kept as `*_v2.pdf`). Draft 4 adds section 1b (how the raw 2pt and FF data become the 3pt, the ratio and M_eff), AIC over the GEVP times (part D2), and E0 per jackknife sample in S. 2026-11-18, after part D: the final result is the average over the GEVP times (D2) for all three methods, not the average over bases (D1); in the pion sGEVP at pz 6 that average runs over t0 2-5 (section 9, "Decision"). Later on 2026-11-18 (approved): part E, the sGEVP alone with window AIC and the t0 average at every svdcut (section 11).
 
 Three fit methods, pion and proton, in separate reports:
 
@@ -373,3 +373,29 @@ Other files:
 | A-C in total | about 8 h; report v1 then |
 | D1 (63-basis inputs + 2.4 M ratio fits) | about 4.5 h more |
 | D2 (9 GEVP pairs, 5 sGEVP t0) | about 1 h more |
+
+## 11. Part E: the sGEVP with window AIC and the GEVP-time average, at every svdcut (approved 2026-11-18)
+
+**Your decision (2026-11-18):** settle on the sGEVP method; always use the window AIC as it is now (section 7); no AIC over the operator basis; scan the svdcut for the sGEVP; average over the GEVP time t0 (option "Approve, average t0").
+
+- **Method:** the sGEVP M_eff fit of section 4, unchanged: six operators, all w in one fit, A forced negative, six starts, covariance per sample. The ratio fits stay in the main report but are no longer the result.
+- **Operator basis:** the six operators only (no AIC over bases).
+- **GEVP times:** t0 = 2, 3, 4, 5, 6, as in part D2; pion pz 6 uses t0 2-5 (section 9, "Decision").
+- **Windows:** the grids of section 7.
+    - B1: first t 2, 3, 4; last t from first + 4 up to the signal end.
+    - B2: first t 2; last t from 6 up to the signal end.
+    - The signal end comes from the t0 2 data (section 7), and the same grid is used at every t0, so a window has the same N_cut at every t0.
+    - Pion pz 5-6 have a single window (2-6).
+- **svdcut:** the 10 cuts of part A (1, 1e-1, 1e-2, ..., 1e-8, 1e-12), each with its own weights. Nothing is averaged over svdcuts: chi2 at different cuts cannot be compared.
+- **Weight, in every jackknife sample j, at one svdcut and pz:** over all pairs (t0, window) of the grid, w ~ exp[-(chi2_j + 2k + 2 N_cut)/2], with k = 21 (the same for all pairs) and N_cut as in section 7. Then the weighted M (all w) and dE of that sample, and D and S from them (section 5).
+    - This is the window AIC at each t0 followed by the average over t0: the weight of a t0 is the sum of the weights of its windows.
+    - With a single window it is exactly the D2 rule of section 9, exp(-chi2_j/2) over t0.
+- **B1 or B2:** both are made at every svdcut. Your rule (section 7): if B1 makes the error much larger than the fixed window, use B2. AIC is always used; there is no "drop AIC" step any more.
+- **Reference ("fixed"):** the fixed window of section 4 with the same t0 average, at each svdcut (at 1e-2 this is the current final sGEVP result).
+- **Fits:** 11340 jackknife fits (hadron x pz x t0 x svdcut x B1 window), 621 already done, 10719 new; about 2-2.5 h with 13 workers. Job list from `scripts/jobs_E.py`.
+- **Report:** `~/Desktop/1365cfg_fit_test/sgevp_svdcut_aic_{pion,proton}_1365cfg.pdf`, PNGs in `plots/{pion,proton}/E_sgevp_scan/`, fit sheets in `sgevp_svdcut_aic_fit_sheets_{pion,proton}_1365cfg.pdf`.
+    - Per svdcut: the weight of every (t0, window), B1 and B2, with M(w 0) and M(w 4)/M(w 0) of each; the ITD with all pz together (fixed, B1, B2).
+    - Against svdcut, per pz: M(w 0), dE, D(w 4), D(w 8), S(w 0), for fixed, B1 and B2.
+    - The error ratio B1 / fixed and B2 / fixed for D(w 4) and S(w 0), per svdcut and pz; numbers pages.
+    - Fit sheets: the largest-weight (t0, window) per svdcut, variant and pz.
+
