@@ -32,3 +32,7 @@ local_analysis/final_production_delta/.FF_hyp0-8_w0-9_q-2_0_0_ncfg800.h5.9qeebMO
 scratch/coulomb_smearing_audit_20261105/review.md
 scratch/coulomb_smearing_audit_20261105/audit.py
 local_analysis/final_production_delta/AI_assisted_matrix_element_analysis/DESIGN_PLAN.md
+
+# final analysis: only the two notebooks go to github;  plans, PDFs, scripts and run folders stay on the laptop (2026-11-22)
+local_analysis/final_analysis/*
+!local_analysis/final_analysis/*.ipynb
