@@ -1,4 +1,4 @@
-#Compares an FF file of the new script (FF_covshift_boost_direction_frontier.py, --boost_direction z) with the old FF of the same cfg.
+#Compares an FF file of the new script (FF_covshift_boost_direction_frontier_streame.py, --boost_direction z) with the old FF of the same cfg.
 #The Frontier copy of FF_production/delta/compare_FF_with_old.py: only this header changed (the usage lines below).
 #Run on a Frontier login node after the FF test job has finished. On Frontier the whole old per-cfg file is there (all 16 HYP levels, 16 lines, 5 + 27 q):
 #    . /ccs/home/syritsyn/build/frontier/pyquda-2025/env.sh

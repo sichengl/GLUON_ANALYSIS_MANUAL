@@ -6,7 +6,7 @@
 #SBATCH -J packFF_byq_d
 #SBATCH -o packFF_byq_d_%j.out
 #SBATCH -e packFF_byq_d_%j.out
-#STREAM D copy of packFF_byq_frontier.sh: only this line, the job name, the log names and the python file differ.
+#STREAM D copy of packFF_byq_frontier_streame.sh: only this line, the job name, the log names and the python file differ.
 #Packs every cfg that has an FF file with packFF_byq_frontier_streamd.py (one reader, little memory) on one Frontier node; the GPUs are not used.
 #The smearing and the direction come from two variables, both required.
 #The Frontier copy of FF_production/delta/packFF_byq_delta.sh: the Frontier header and environment. Submit from this folder:

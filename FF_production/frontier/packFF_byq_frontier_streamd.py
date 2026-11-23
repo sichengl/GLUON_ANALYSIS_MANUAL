@@ -1,14 +1,14 @@
-#Packs the gluon FF of the per-cfg files of FF_covshift_boost_direction_frontier.py per momentum transfer q, for the local analysis with the per-q 2pt of
+#Packs the gluon FF of the per-cfg files of FF_covshift_boost_direction_frontier_streame.py per momentum transfer q, for the local analysis with the per-q 2pt of
 #delta_package_byq_opt.py or its Frontier and Fermilab copies: one file per q with a cfg axis, the operator on all Lt time slices (no roll to any source).
 #ONE packer for HYP and flow and for the three directions; both are chosen on the command line:
-#    python3 packFF_byq_frontier.py --smear hyp --boost_direction x
+#    python3 packFF_byq_frontier_streame.py --smear hyp --boost_direction x
 #The Frontier copy of FF_production/delta/packFF_byq_delta.py: only this header and FF_DIR, SAVE_DIR changed. Every place that depends on the direction is marked DIRECTION, on the smearing SMEAR.
 #The values are stored as they are on disk: volume sum with exp(+i 2pi/Ls q.x) at the start point x of the Wilson line, which runs from x to x - w
 #along the boost direction. No centering phase is applied. Pair FF(q) with the 2pt of the same q and the same boost direction.
 #q_pack_list is the same for every direction: the q of the files are labels as seen from the boost direction, (a, b, c) with c along the boost.
 #All cfgs whose per-cfg file exists are packed; the number is in the file names (ncfg).
 #Run it on Frontier, CPU only.
-#STREAM D copy of packFF_byq_frontier.py: only this line, FF_DIR (streamd_direction_<x|y|z>), SAVE_DIR (FF_byq_streamd) and the cfg_all comment differ.
+#STREAM D copy of packFF_byq_frontier_streame.py: only this line, FF_DIR (streamd_direction_<x|y|z>), SAVE_DIR (FF_byq_streamd) and the cfg_all comment differ.
 import argparse
 from pathlib import Path
 import h5py

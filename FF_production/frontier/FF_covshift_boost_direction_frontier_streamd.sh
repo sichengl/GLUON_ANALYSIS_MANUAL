@@ -7,8 +7,8 @@
 #SBATCH -o ./logs/FF_boost_flux_%j.out
 #SBATCH -e ./logs/FF_boost_flux_%j.err
 
-# STREAM D copy of FF_covshift_boost_direction_frontier.sh: only this line, the job name, SCRIPT and SUBMIT differ. Output: FF_data/streamd_direction_<x|y|z>.
-# FF (FF_covshift_boost_direction_frontier.py) for the 800 stream-e cfgs (204, 210, ..., 4998) on Frontier: one GCD (64 GB) per run, 8 runs per node.
+# STREAM D copy of FF_covshift_boost_direction_frontier_streame.sh: only this line, the job name, SCRIPT and SUBMIT differ. Output: FF_data/streamd_direction_<x|y|z>.
+# FF (FF_covshift_boost_direction_frontier_streame.py) for the 800 stream-e cfgs (204, 210, ..., 4998) on Frontier: one GCD (64 GB) per run, 8 runs per node.
 # The Frontier copy of FF_production/delta/FF_covshift_boost_direction_delta.sh. On Delta every array task is one run on one A100; Frontier gives whole
 # nodes only, so here one Slurm job holds all the runs and Flux puts them on the GCDs (one Flux job per run), as in the stream-d 2pt job
 # 2pt_production/frontier/final_production_frontier/8gpu/frontier_stream_d/2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_flux.sh
@@ -20,10 +20,10 @@
 # The job does the runs FIRST_RUN .. LAST_RUN, by default all of them (0 .. 799 / NCFG). Flux starts one run per GCD and the next one when a GCD is
 # free, so the runs need not fit on the nodes at once. With NCFG = 5 (the default): 160 runs, all at once on -N 20 (the default).
 #
-# First test, one cfg (204):  NCFG=1 FIRST_RUN=0 LAST_RUN=0 SMEAR=hyp BOOST_DIRECTION=z sbatch -N 1 FF_covshift_boost_direction_frontier.sh
+# First test, one cfg (204):  NCFG=1 FIRST_RUN=0 LAST_RUN=0 SMEAR=hyp BOOST_DIRECTION=z sbatch -N 1 FF_covshift_boost_direction_frontier_streame.sh
 # then compare with the old FF (compare_FF_with_old_frontier.py), read the time per smearing level in the run's log
 # (runs/FF_flux_<jobid>/flux_logs/run0_cfg204.log, "SHIFT #204: ... secs"), choose NCFG, -N and -t, and submit the rest:
-#                             SMEAR=hyp BOOST_DIRECTION=x sbatch FF_covshift_boost_direction_frontier.sh
+#                             SMEAR=hyp BOOST_DIRECTION=x sbatch FF_covshift_boost_direction_frontier_streame.sh
 # Time limits: batch partition 2 h for 1-91 nodes, 6 h for 92-183, 12 h for 184+; extended partition (-p extended) 1-64 nodes, 24 h.
 # NCFG = 5 in 2 h is a guess (Delta A100: about 25 s per HYP level, 16 levels, so about 7 min per cfg; a GCD is not measured).
 # A cfg is saved when it is done, so a run killed at the time limit loses only the cfg it is on.

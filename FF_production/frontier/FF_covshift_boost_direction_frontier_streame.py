@@ -1,8 +1,8 @@
 #Frontier version: FF_production/delta/FF_covshift_boost_direction_delta.py with only this header and the paths changed. One run uses one GCD.
 #F_munu F_rhosigma correlator with a Wilson line along x, y or z, with HYP smearing or Wilson flow. Both are chosen on the command line:
-#    python3 FF_covshift_boost_direction_frontier.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
-#    python3 FF_covshift_boost_direction_frontier.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
-#Job script: FF_covshift_boost_direction_frontier.sh
+#    python3 FF_covshift_boost_direction_frontier_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
+#    python3 FF_covshift_boost_direction_frontier_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
+#Job script: FF_covshift_boost_direction_frontier_streame.sh
 #Merged from FF_covshift_oddeven_trimag_negative_direction_hyp.py and FF_covshift_oddeven_trimag_negative_direction_flow.py.
 #The calculation at each smearing level is the block of those two files, unchanged.
 #
