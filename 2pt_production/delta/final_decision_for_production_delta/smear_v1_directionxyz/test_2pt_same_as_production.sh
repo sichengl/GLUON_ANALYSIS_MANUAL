@@ -14,10 +14,10 @@
 #SBATCH -e ./logs/pt2_test_%j.err
 
 # TEST: does the direction version give the same 2pt as the production?
-# Runs 2pt_coulomb_boosted_sepq_3072srcs_delta_final.py of this folder with --boost_direction z on ONE cfg that the production has already
+# Runs 2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py of this folder with --boost_direction z on ONE cfg that the production has already
 # finished with the current setup (solver tol 1e-8, _smear files): cfg_list[413] = cfg 2682, production task 23411671_413.
 # The job is cut by the 1 h limit on purpose (TIMEOUT is the expected end): by then the first 2 t_src (128 sources each, about 21 min each)
-# are saved as parts. compare_2pt_with_production.py then compares these parts with the same t_src of the production .h5 files.
+# are saved as parts. compare_2pt_with_production_streame.py then compares these parts with the same t_src of the production .h5 files.
 #
 # The test writes to its own folder TEST_DIR, never to the production folder: only the COPY of the setup in the run folder gets another
 # current_dir (the sed line below). Everything else is the production job script of this folder.
@@ -27,8 +27,8 @@
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_delta_final.py
-SETUP=sepq_2pt_setup_delta_final.py
+SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py
+SETUP=sepq_2pt_setup_delta_final_streame.py
 SUBMIT=test_2pt_same_as_production.sh             # name of this file, used for its copy in the run folder
 SMEAR=coulomb_smearing_boost_direction.py      # in this folder: the copy of 2pt_production/tools/coulomb_smearing.py with the boost_direction argument
 COMM=../../../tools/pt2_comm_tools.py          # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools, three levels up from this folder)

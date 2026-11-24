@@ -14,7 +14,7 @@
 #SBATCH -o ./logs/FF_boost_%A_%a.out
 #SBATCH -e ./logs/FF_boost_%A_%a.err
 
-# FF (FF_covshift_boost_direction_fermilab.py) for the 800 stream-e cfgs (204, 210, ..., 4998) on Fermilab: one A100 (80 GB) of an lq2_gpu node per
+# FF (FF_covshift_boost_direction_fermilab_streame.py) for the 800 stream-e cfgs (204, 210, ..., 4998) on Fermilab: one A100 (80 GB) of an lq2_gpu node per
 # array task. The Fermilab copy of FF_production/delta/FF_covshift_boost_direction_delta.sh: the Fermilab header, environment and launcher (mpirun).
 # The smearing and the direction come from two variables, both required:
 #     SMEAR            hyp or flow      (hyp: 16 levels, lines 0..15;  flow: 41 levels of 10 steps of 0.01, lines 0..9)
@@ -33,7 +33,7 @@
 # Submit from the folder that holds the python script. Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" first.
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
-SCRIPT=FF_covshift_boost_direction_fermilab.py
+SCRIPT=FF_covshift_boost_direction_fermilab_streame.py
 NCFG=${NCFG:-10}
 [ -f "$SCRIPT" ] || { echo "missing $SCRIPT in $SLURM_SUBMIT_DIR"; exit 1; }
 if [ -z "$SMEAR" ] || [ -z "$BOOST_DIRECTION" ]; then

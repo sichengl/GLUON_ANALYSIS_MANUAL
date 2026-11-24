@@ -1,6 +1,6 @@
 #Delta version. F_munu F_rhosigma correlator with a Wilson line along x, y or z, with HYP smearing or Wilson flow. Both are chosen on the command line:
-#    python FF_covshift_boost_direction_delta.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
-#    python FF_covshift_boost_direction_delta.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
+#    python FF_covshift_boost_direction_delta_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
+#    python FF_covshift_boost_direction_delta_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
 #Job script: FF_covshift_boost_direction_delta.sh
 #Merged from FF_covshift_oddeven_trimag_negative_direction_hyp.py and FF_covshift_oddeven_trimag_negative_direction_flow.py.
 #The calculation at each smearing level is the block of those two files, unchanged.
@@ -58,7 +58,7 @@ boost_direction = args.boost_direction
 #======== paths (Delta) ========
 resource_path = "/u/sliu54/QUDA_resources/.cache/quda_FF"                                                # QUDA tuning cache of the one-GPU FF runs (the 2pt runs have their own)
 gauge_prefix = "/work/hdd/biqz/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"             # stream e, the files of the 2pt production
-out_dir = f"/work/hdd/biqz/sliu54/FF_production/FF_data/direction_{boost_direction}"                     # /work/hdd: /projects is too small
+out_dir = f"/work/hdd/biqz/sliu54/FF_production/FF_data/streame_direction_{boost_direction}"                     # /work/hdd: /projects is too small
 os.makedirs(resource_path, exist_ok=True)
 os.makedirs(out_dir, exist_ok=True)
 

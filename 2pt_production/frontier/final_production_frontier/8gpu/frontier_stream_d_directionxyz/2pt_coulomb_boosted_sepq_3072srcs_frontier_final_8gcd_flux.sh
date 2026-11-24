@@ -25,8 +25,8 @@
 # z does not write into the folder of the running stream-d production (the old code, ..._smear_GEVP_...): a cfg the old code has finished is not skipped.
 cd $SLURM_SUBMIT_DIR
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py
-SETUP=sepq_2pt_setup_frontier_final_8gcd.py
+SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_streamd.py
+SETUP=sepq_2pt_setup_frontier_final_8gcd_streamd.py
 SUBMIT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_flux.sh          # name of this file, used for its copy in the run folder
 SMEAR=coulomb_smearing_boost_direction.py      # in this folder: the copy of 2pt_production/tools/coulomb_smearing.py with the boost_direction argument
 COMM=../../../../tools/pt2_comm_tools.py       # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)

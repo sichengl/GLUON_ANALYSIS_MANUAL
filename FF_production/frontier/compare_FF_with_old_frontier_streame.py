@@ -1,9 +1,9 @@
 #Compares an FF file of the new script (FF_covshift_boost_direction_frontier_streame.py, --boost_direction z) with the old FF of the same cfg.
-#The Frontier copy of FF_production/delta/compare_FF_with_old.py: only this header changed (the usage lines below).
+#The Frontier copy of FF_production/delta/compare_FF_with_old_streame.py: only this header changed (the usage lines below).
 #Run on a Frontier login node after the FF test job has finished. On Frontier the whole old per-cfg file is there (all 16 HYP levels, 16 lines, 5 + 27 q):
 #    . /ccs/home/syritsyn/build/frontier/pyquda-2025/env.sh
 #    cd /lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_data
-#    python3 <this folder>/compare_FF_with_old_frontier.py direction_z/FF_opp_symmetric_asymmetric_hyp0-15_w0-15_boostz_cfg204.h5 FF_opp_symmetric_asymmetric_hyp0-15_w0-15_cfg204.h5
+#    python3 <this folder>/compare_FF_with_old_frontier_streame.py streame_direction_z/FF_opp_symmetric_asymmetric_hyp0-15_w0-15_boostz_cfg204.h5 FF_opp_symmetric_asymmetric_hyp0-15_w0-15_cfg204.h5
 #Flow: the old flow files are /lustre/orion/lgt132/scratch/sicheng/GPD_calc/FF_data/FF_opp_symmetric_asymmetric_flow0-40_cfg<cfg>.h5 (read by
 #3pt_production_simple/build_3pt.py); a dataset the old file does not have is reported as "not compared".
 #The old file can be

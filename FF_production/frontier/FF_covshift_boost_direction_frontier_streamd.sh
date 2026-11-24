@@ -21,7 +21,7 @@
 # free, so the runs need not fit on the nodes at once. With NCFG = 5 (the default): 160 runs, all at once on -N 20 (the default).
 #
 # First test, one cfg (204):  NCFG=1 FIRST_RUN=0 LAST_RUN=0 SMEAR=hyp BOOST_DIRECTION=z sbatch -N 1 FF_covshift_boost_direction_frontier_streame.sh
-# then compare with the old FF (compare_FF_with_old_frontier.py), read the time per smearing level in the run's log
+# then compare with the old FF (compare_FF_with_old_frontier_streame.py), read the time per smearing level in the run's log
 # (runs/FF_flux_<jobid>/flux_logs/run0_cfg204.log, "SHIFT #204: ... secs"), choose NCFG, -N and -t, and submit the rest:
 #                             SMEAR=hyp BOOST_DIRECTION=x sbatch FF_covshift_boost_direction_frontier_streame.sh
 # Time limits: batch partition 2 h for 1-91 nodes, 6 h for 92-183, 12 h for 184+; extended partition (-p extended) 1-64 nodes, 24 h.

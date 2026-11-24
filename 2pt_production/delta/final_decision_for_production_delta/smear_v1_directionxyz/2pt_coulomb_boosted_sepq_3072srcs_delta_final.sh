@@ -29,8 +29,8 @@
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_delta_final.py
-SETUP=sepq_2pt_setup_delta_final.py
+SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py
+SETUP=sepq_2pt_setup_delta_final_streame.py
 SUBMIT=2pt_coulomb_boosted_sepq_3072srcs_delta_final.sh               # name of this file, used for its copy in the run folder
 SMEAR=coulomb_smearing_boost_direction.py      # in this folder: the copy of 2pt_production/tools/coulomb_smearing.py with the boost_direction argument
 COMM=../../../tools/pt2_comm_tools.py          # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools, three levels up from this folder)

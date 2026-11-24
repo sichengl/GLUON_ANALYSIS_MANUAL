@@ -1,6 +1,7 @@
-#Frontier final run on stream d, 8 GCDs per run (2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py): the setup of the Delta final run
-#(delta/final_decision_for_production_delta/smear_v1/sepq_2pt_setup_delta_final.py) as it is, except the GPU grid (the 8 GCDs of one node instead of 4 A100s)
-#and the directories. The parameter object keeps Delta's name, delta_params, and Delta's 800 cfg numbers (204, 210, ..., 4998).
+#Delta final run on stream e: 800 cfgs (204, 210, ..., 4998) with the 24t x 4x x 4y x 8z = 3072 sources per cfg, the two smearings chosen by the
+#smearing tuning (runs 1-4, smear _tuning/), each with its own boost (see smear_list), and three gammas (G5, G5G4, G3G5): the 2 x 3 = 6 interpolators
+#of the GEVP. Source and sink smearings run over both entries of smear_list, so the files hold the full 6 x 6 matrix.
+#Based on sepq_2pt_setup_delta_classused_streame_test_200cfg.py: differs in the source grid, the smearings, the gauge-fixing steps and the output folder.
 import numpy as np
 from pt2_comm_tools import TwoPtParams          # tools/pt2_comm_tools.py: the job script copies it into the run folder
 
@@ -21,9 +22,8 @@ delta_params.x_base = np.arange(0, delta_params.GLs, 8)     # 4 x
 delta_params.y_base = np.arange(0, delta_params.GLs, 8)     # 4 y
 delta_params.z_base = np.arange(0, delta_params.GLs, 4)     # 8 z                      # 24 x 4 x 4 x 8 = 3072 sources
 
-#QUDA: grid of 8 GCDs along t (12 time slices each), clover Wilson Dirac operator, multigrid solver. With 12 time slices the multigrid blocks
-#below would give odd coarse time extents; QUDA then halves those blocks itself (warning in the log), as it did once on Delta
-delta_params.grid_size = [1, 1, 1, 8]
+#QUDA: grid of 4 GPUs along t, clover Wilson Dirac operator, multigrid solver
+delta_params.grid_size = [1, 1, 1, 4]
 delta_params.mass = -0.05138
 delta_params.tol = 1e-8
 delta_params.maxiter = 1000
@@ -76,7 +76,7 @@ delta_params.fb_index = {"pt2_forward": forward_index, "pt2_backward": backward_
 
 
 #======== cfgs, smearing operators and momentum tables (not in the class) ========
-cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delta_params.cfg_step, delta_params.cfg_step)    # stream d 204, 210, ..., 4998
+cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delta_params.cfg_step, delta_params.cfg_step)    # stream e 204, 210, ..., 4998
 cfg_measure_spacing = 1
 src_phase_sign = -1
 n_spatial_src = len(delta_params.x_base) * len(delta_params.y_base) * len(delta_params.z_base)
@@ -120,6 +120,6 @@ transfer_note = ("P_f = P_i + q (physical momenta, equal to the labels): source 
 
 
 #======== path definitions ========
-current_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/final_production_3072src_8gcd_streamd"
-quda_resource_path = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/.cache/quda_final_8gcd"      # its own tuning cache: other GCD counts tune other kernels
-gauge_file_prefix = "/lustre/orion/lgt132/world-shared/DATA/MILC/a09m310/gauge/l3296f211b630m0074m037m440d"     # stream d
+current_dir = "/work/hdd/biqz/sliu54/2pt_production/final_production_3072src_200cfg_streame"
+quda_resource_path = "/u/sliu54/QUDA_resources/.cache/quda"
+gauge_file_prefix = "/work/hdd/biqz/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     # stream e, copied from Frontier with Globus

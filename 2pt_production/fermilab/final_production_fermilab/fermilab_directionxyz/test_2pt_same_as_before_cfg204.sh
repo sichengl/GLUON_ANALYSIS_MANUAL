@@ -15,10 +15,10 @@
 # TEST: does the code of this folder give the same 2pt as the earlier Fermilab run of cfg 204?
 # The earlier run: job 1349355_0 (2026-10-21), the code of 2026-10-20 (git b25384c), solver tol 1e-10, files in
 # /lustre2/gluonp0/sliu1/2pt_production/final_production_3072src_200cfg/coulomb_rho4p5z2p25-rho1p5_frac0p8-0_paired_GEVP_sepq_3072src_phyp_fb_tsep20/cfg204
-# (the old layout: shape, shape, frac, frac, ...). This job runs 2pt_coulomb_boosted_sepq_3072srcs_fermilab_final.py of this folder with
+# (the old layout: shape, shape, frac, frac, ...). This job runs 2pt_coulomb_boosted_sepq_3072srcs_fermilab_final_streame.py of this folder with
 # --boost_direction z on cfg_list[0] = cfg 204, at the tol of the earlier run.
 # The job is cut by the 1 h limit on purpose (TIMEOUT is the expected end): by then the first 2 t_src (128 sources each, about 21 min each)
-# are saved as parts. compare_2pt_with_old_run.py then compares these parts with the same t_src of the earlier .h5 files.
+# are saved as parts. compare_2pt_with_old_run_streame.py then compares these parts with the same t_src of the earlier .h5 files.
 #
 # The test writes to its own folder TEST_DIR, never to a production folder: only the COPY of the setup in the run folder gets another
 # current_dir and the tol of the earlier run (the two sed lines below). Everything else is the job script of this folder.
@@ -28,8 +28,8 @@
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_fermilab_final.py
-SETUP=sepq_2pt_setup_fermilab_final.py
+SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_fermilab_final_streame.py
+SETUP=sepq_2pt_setup_fermilab_final_streame.py
 SUBMIT=test_2pt_same_as_before_cfg204.sh       # name of this file, used for its copy in the run folder
 SMEAR=coulomb_smearing_boost_direction.py      # in this folder: the copy of 2pt_production/tools/coulomb_smearing.py with the boost_direction argument
 COMM=../../../tools/pt2_comm_tools.py          # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools, three levels up from this folder)

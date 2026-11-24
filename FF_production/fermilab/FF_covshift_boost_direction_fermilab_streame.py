@@ -1,7 +1,7 @@
-#Fermilab version: FF_production/delta/FF_covshift_boost_direction_delta.py with only this header and the paths changed.
+#Fermilab version: FF_production/delta/FF_covshift_boost_direction_delta_streame.py with only this header and the paths changed.
 #F_munu F_rhosigma correlator with a Wilson line along x, y or z, with HYP smearing or Wilson flow. Both are chosen on the command line:
-#    python3 FF_covshift_boost_direction_fermilab.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
-#    python3 FF_covshift_boost_direction_fermilab.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
+#    python3 FF_covshift_boost_direction_fermilab_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
+#    python3 FF_covshift_boost_direction_fermilab_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
 #Job script: FF_covshift_boost_direction_fermilab.sh
 #Merged from FF_covshift_oddeven_trimag_negative_direction_hyp.py and FF_covshift_oddeven_trimag_negative_direction_flow.py.
 #The calculation at each smearing level is the block of those two files, unchanged.
@@ -59,7 +59,7 @@ boost_direction = args.boost_direction
 #======== paths (Fermilab) ========
 resource_path = "/lustre2/gluonp0/sliu1/.cache/quda_FF"                                                  # QUDA tuning cache of the one-GPU FF runs (the 2pt runs have their own)
 gauge_prefix = "/lustre2/gluonp0/sliu1/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     # stream e, copied from Frontier with Globus (the files of the Fermilab 2pt run)
-out_dir = f"/lustre2/gluonp0/sliu1/FF_production/FF_data/direction_{boost_direction}"                    # data on /lustre2, code on /project
+out_dir = f"/lustre2/gluonp0/sliu1/FF_production/FF_data/streame_direction_{boost_direction}"                    # data on /lustre2, code on /project
 os.makedirs(resource_path, exist_ok=True)
 os.makedirs(out_dir, exist_ok=True)
 

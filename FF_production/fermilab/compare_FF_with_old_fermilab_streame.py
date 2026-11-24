@@ -1,7 +1,8 @@
-#Compares an FF file of the new script (FF_covshift_boost_direction_delta.py, --boost_direction z) with the old FF of the same cfg.
-#Run on a Delta login node after the FF test job has finished:
-#    source ~/env_pyquda.sh
-#    python compare_FF_with_old.py /work/hdd/biqz/sliu54/FF_production/FF_data/direction_z/FF_opp_symmetric_asymmetric_hyp0-15_w0-15_boostz_cfg204.h5 FF_old_reference_cfg204_hyp0-8_w0-9.h5
+#Compares an FF file of the new script (FF_covshift_boost_direction_fermilab_streame.py, --boost_direction z) with the old FF of the same cfg.
+#The Fermilab copy of FF_production/delta/compare_FF_with_old_streame.py: only this header changed (the usage lines below).
+#Run on a Fermilab login node after the FF test job has finished (FF_old_reference_cfg204_hyp0-8_w0-9.h5 must be uploaded to this folder too):
+#    module purge; module load gompi/2023a cuda/12.2.1; source ~/miniforge3/etc/profile.d/conda.sh; conda activate pyquda
+#    python3 compare_FF_with_old_fermilab_streame.py /lustre2/gluonp0/sliu1/FF_production/FF_data/streame_direction_z/FF_opp_symmetric_asymmetric_hyp0-15_w0-15_boostz_cfg204.h5 FF_old_reference_cfg204_hyp0-8_w0-9.h5
 #The old file can be
 #  - FF_old_reference_cfg204_hyp0-8_w0-9.h5 of this folder: cfg 204 of the old Frontier production (FF_covshift_oddeven_trimag_negative_direction_hyp.py),
 #    taken from the packed files on the laptop: the 5 symmetric q, HYP levels 0-8, Wilson lines 0-9, all 6 x 6 components, all 96 t;

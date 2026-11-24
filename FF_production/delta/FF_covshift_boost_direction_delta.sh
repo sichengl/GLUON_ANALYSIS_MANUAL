@@ -13,7 +13,7 @@
 #SBATCH -o ./logs/FF_boost_%A_%a.out
 #SBATCH -e ./logs/FF_boost_%A_%a.err
 
-# FF (FF_covshift_boost_direction_delta.py) for the 800 stream-e cfgs (204, 210, ..., 4998) on Delta: one A100 GPU per array task.
+# FF (FF_covshift_boost_direction_delta_streame.py) for the 800 stream-e cfgs (204, 210, ..., 4998) on Delta: one A100 GPU per array task.
 # The smearing and the direction come from two variables, both required:
 #     SMEAR            hyp or flow      (hyp: 16 levels, lines 0..15;  flow: 41 levels of 10 steps of 0.01, lines 0..9)
 #     BOOST_DIRECTION  x, y or z        (lattice axis of the Wilson line)
@@ -30,7 +30,7 @@
 # Submit from the folder that holds the python script. Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" first.
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
-SCRIPT=FF_covshift_boost_direction_delta.py
+SCRIPT=FF_covshift_boost_direction_delta_streame.py
 NCFG=${NCFG:-10}
 [ -f "$SCRIPT" ] || { echo "missing $SCRIPT in $SLURM_SUBMIT_DIR"; exit 1; }
 if [ -z "$SMEAR" ] || [ -z "$BOOST_DIRECTION" ]; then

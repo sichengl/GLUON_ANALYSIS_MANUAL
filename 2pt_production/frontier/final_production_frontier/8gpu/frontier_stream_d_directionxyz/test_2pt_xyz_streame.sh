@@ -9,7 +9,7 @@
 
 # TEST: the direction version on Frontier in x, y and z, on the STREAM-E cfgs that Delta and Fermilab also run (cfg_list index 413-422 = cfg 2682-2736),
 # so that every number can be compared cfg by cfg with Delta (z: its production; x, y: its test runs) and with Fermilab.
-# Runs 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py of this folder on ONE cfg with the boost direction BOOST_DIRECTION.
+# Runs 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_streamd.py of this folder on ONE cfg with the boost direction BOOST_DIRECTION.
 # The job is cut by the 2 h limit on purpose (TIMEOUT is the expected end; batch jobs of 1-91 nodes get at most 2 h): by then the first 2-3 t_src
 # (128 sources each, about 38 min each at 18 s per source) are saved as parts.
 #
@@ -21,8 +21,8 @@
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
 cd $SLURM_SUBMIT_DIR
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py
-SETUP=sepq_2pt_setup_frontier_final_8gcd.py
+SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_streamd.py
+SETUP=sepq_2pt_setup_frontier_final_8gcd_streamd.py
 SUBMIT=test_2pt_xyz_streame.sh                 # name of this file, used for its copy in the run folder
 SMEAR=coulomb_smearing_boost_direction.py      # in this folder: the copy of 2pt_production/tools/coulomb_smearing.py with the boost_direction argument
 COMM=../../../../tools/pt2_comm_tools.py       # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)

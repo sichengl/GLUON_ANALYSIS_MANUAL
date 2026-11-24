@@ -152,7 +152,7 @@ proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else
 
 def file_name(frame, q, role, particle):
     name_tag = f"{smear_tag}_GEVP_{frame}_q{q[0]}_{q[1]}_{q[2]}_{role}_fb_tsep{tsep_max}_{n_src}src_ncfg{n_cfg}"
-    return f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
+    return f"{save_dir}/2pt_streame_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
 
 filenames = {(i, particle): file_name(frame, q, role, particle) for i, (frame, q, role, _, _, _, _, _) in enumerate(read_plan) for particle in particle_list}
 out = {key: h5py.File(f"{filenames[key]}.tmp", "w") for key in filenames}      # renamed when complete

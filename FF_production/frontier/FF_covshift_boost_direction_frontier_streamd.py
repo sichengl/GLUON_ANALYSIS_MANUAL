@@ -1,5 +1,5 @@
 #STREAM D copy of FF_covshift_boost_direction_frontier_streame.py: only this line, gauge_prefix (stream d) and out_dir (streamd_direction_<x|y|z>) differ.
-#Frontier version: FF_production/delta/FF_covshift_boost_direction_delta.py with only this header and the paths changed. One run uses one GCD.
+#Frontier version: FF_production/delta/FF_covshift_boost_direction_delta_streame.py with only this header and the paths changed. One run uses one GCD.
 #F_munu F_rhosigma correlator with a Wilson line along x, y or z, with HYP smearing or Wilson flow. Both are chosen on the command line:
 #    python3 FF_covshift_boost_direction_frontier_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
 #    python3 FF_covshift_boost_direction_frontier_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
@@ -60,7 +60,7 @@ boost_direction = args.boost_direction
 #======== paths (Frontier) ========
 resource_path = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/.cache/quda_FF"  # QUDA tuning cache of the one-GCD FF runs (the 2pt runs have their own)
 gauge_prefix = "/lustre/orion/lgt132/world-shared/DATA/MILC/a09m310/gauge/l3296f211b630m0074m037m440d"      # stream d, the gauge files of the stream-d 2pt production
-out_dir = f"/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_data/streamd_direction_{boost_direction}"  # stream d: the file names do not say the stream, so never the stream-e folders direction_<x|y|z>
+out_dir = f"/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_data/streamd_direction_{boost_direction}"  # stream d: the file names do not say the stream, so never the stream-e folders streame_direction_<x|y|z>
 os.makedirs(resource_path, exist_ok=True)
 os.makedirs(out_dir, exist_ok=True)
 

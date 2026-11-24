@@ -1,4 +1,4 @@
-#Packs the merged per-cfg files of the final run (2pt_coulomb_boosted_sepq_3072srcs_delta_final.py) per frame and momentum transfer q, for the local
+#Packs the merged per-cfg files of the final run (2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py) per frame and momentum transfer q, for the local
 #analysis. For every (frame, q) of pack_list it writes three files per particle of particle_list, each with a cfg axis:
 #  C3input: the 2pt of the case that holds q (source weight exp(-i 2pi/Ls q.x_src)); the input of the 3pt with the FF of the same q.
 #           Its ensemble mean is zero for q != 0, so it is not a 2pt for the ratio.
@@ -6,7 +6,7 @@
 #  C2pi:    the plain q = 0 2pt at the source momenta p_i(pz) = p_f(pz) - q: denominators of the ratio and the GEVP at the source
 #Frame "forward" (q = 0) writes the C3input file only: at q = 0 that file is also the C2pf and the C2pi file.
 #Every file holds one q and has no q axis: to get a q axis, stack the C3input files of several (frame, q).
-#Run it on Delta, CPU only, with the setup next to it: python3 delta_package_byq_opt.py --boost_direction x
+#Run it on Delta, CPU only, with the setup next to it: python3 delta_package_byq_opt_streame.py --boost_direction x
 #Direction version (smear_v1_directionxyz): ONE packer for the three boost directions. --boost_direction x, y or z (default z) says which run to pack.
 #Every place that depends on it is marked DIRECTION. With z it packs what smear_v1_running/packer/delta_package_byq_opt.py packs.
 #pack_list is the same for every direction: the q of the files are labels as seen from the boost direction, (a, b, c) with c along the boost.
@@ -30,7 +30,7 @@ import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, three levels up from this folder
-from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
+from sepq_2pt_setup_delta_final_streame import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--boost_direction", type=str, default="z", choices=["x", "y", "z"])      # lattice axis of the boost of the run to pack
@@ -44,7 +44,7 @@ pack_list = [["forward", [0, 0, 0]], ["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["
 particle_list = ["pion", "proton"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
 project_proton = True             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
 n_workers = 16                     # worker processes reading cfgs in parallel (the main process writes); about 2.5 GB each with the proton, 0.2 GB pion only
-save_dir = "/work/hdd/biqz/sliu54/2pt_production/packed/final_production_byq"      # /work/hdd: /projects is too small
+save_dir = "/work/hdd/biqz/sliu54/2pt_production/packed/final_production_byq_streame"      # /work/hdd: /projects is too small
 
 
 tsep_max = delta_params.tsep_max
@@ -175,7 +175,7 @@ proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else
 
 def file_name(frame, q, role, particle):
     name_tag = f"{smear_tag}_GEVP_{frame}_q{q[0]}_{q[1]}_{q[2]}_{role}_fb_tsep{tsep_max}_{n_src}src_ncfg{n_cfg}"
-    return f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
+    return f"{save_dir}/2pt_streame_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
 
 filenames = {(i, particle): file_name(frame, q, role, particle) for i, (frame, q, role, _, _, _, _, _) in enumerate(read_plan) for particle in particle_list}
 #DIRECTION: the number of x, y and z sources comes from the files, not from the setup: the 8 sources with spacing 4 are along the boost direction

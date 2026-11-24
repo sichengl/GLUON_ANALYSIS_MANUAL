@@ -1,4 +1,4 @@
-#Frontier version: FF_production/delta/FF_covshift_boost_direction_delta.py with only this header and the paths changed. One run uses one GCD.
+#Frontier version: FF_production/delta/FF_covshift_boost_direction_delta_streame.py with only this header and the paths changed. One run uses one GCD.
 #F_munu F_rhosigma correlator with a Wilson line along x, y or z, with HYP smearing or Wilson flow. Both are chosen on the command line:
 #    python3 FF_covshift_boost_direction_frontier_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear hyp  --boost_direction x
 #    python3 FF_covshift_boost_direction_frontier_streame.py --config '{"cfg_n": 204, "num_cfg": 1}' --smear flow --boost_direction z
@@ -59,7 +59,7 @@ boost_direction = args.boost_direction
 #======== paths (Frontier) ========
 resource_path = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/.cache/quda_FF"  # QUDA tuning cache of the one-GCD FF runs (the 2pt runs have their own)
 gauge_prefix = "/lustre/orion/lgt132/world-shared/DATA/MILC/a09m310/gauge/l3296f211b630m0074m037m440e"      # stream e, the files of the old FF production
-out_dir = f"/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_data/direction_{boost_direction}"  # subfolder direction_<x|y|z> of the folder of the old FF: no old file is in it
+out_dir = f"/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_data/streame_direction_{boost_direction}"  # subfolder streame_direction_<x|y|z> of the folder of the old FF: no old file is in it
 os.makedirs(resource_path, exist_ok=True)
 os.makedirs(out_dir, exist_ok=True)
 

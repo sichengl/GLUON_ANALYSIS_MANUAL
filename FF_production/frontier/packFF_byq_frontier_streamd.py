@@ -2,13 +2,13 @@
 #delta_package_byq_opt.py or its Frontier and Fermilab copies: one file per q with a cfg axis, the operator on all Lt time slices (no roll to any source).
 #ONE packer for HYP and flow and for the three directions; both are chosen on the command line:
 #    python3 packFF_byq_frontier_streame.py --smear hyp --boost_direction x
-#The Frontier copy of FF_production/delta/packFF_byq_delta.py: only this header and FF_DIR, SAVE_DIR changed. Every place that depends on the direction is marked DIRECTION, on the smearing SMEAR.
+#The Frontier copy of FF_production/delta/packFF_byq_delta_streame.py: only this header and FF_DIR, SAVE_DIR changed. Every place that depends on the direction is marked DIRECTION, on the smearing SMEAR.
 #The values are stored as they are on disk: volume sum with exp(+i 2pi/Ls q.x) at the start point x of the Wilson line, which runs from x to x - w
 #along the boost direction. No centering phase is applied. Pair FF(q) with the 2pt of the same q and the same boost direction.
 #q_pack_list is the same for every direction: the q of the files are labels as seen from the boost direction, (a, b, c) with c along the boost.
 #All cfgs whose per-cfg file exists are packed; the number is in the file names (ncfg).
 #Run it on Frontier, CPU only.
-#STREAM D copy of packFF_byq_frontier_streame.py: only this line, FF_DIR (streamd_direction_<x|y|z>), SAVE_DIR (FF_byq_streamd) and the cfg_all comment differ.
+#STREAM D copy of packFF_byq_frontier_streame.py: only this line, FF_DIR (streamd_direction_<x|y|z>), SAVE_DIR (FF_byq_streamd), the stream in the file names (FF_streamd_) and the cfg_all comment differ.
 import argparse
 from pathlib import Path
 import h5py
@@ -22,7 +22,7 @@ smear = args.smear
 boost_direction = args.boost_direction
 
 FF_DIR = Path(f"/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_data/streamd_direction_{boost_direction}")  # out_dir of FF_covshift_boost_direction_frontier_streamd.py
-SAVE_DIR = Path("/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_byq_streamd")    # stream d only: the file names do not say the stream
+SAVE_DIR = Path("/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/FF_production/FF_byq_streamd")    # stream d only;  the file names say streamd
 
 #======== what to pack ========
 q_pack_list = [[0, 0, 0], [2, 0, 0], [-2, 0, 0], [0, 2, 0], [0, -2, 0]]      # one file per q, in units of 2pi/L
@@ -75,7 +75,7 @@ print(f"packing {len(cfg_list)} cfgs, q = {q_pack_list} from {[name for name, _ 
 #one file per q: FF (cfg, munu, rhosig, smearing level, w, t), written as .tmp and renamed when complete
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 n_cfg = len(cfg_list)
-filenames = [SAVE_DIR / f"FF_{smear}0-{n_level - 1}_w0-{n_w - 1}_boost{boost_direction}_q{q[0]}_{q[1]}_{q[2]}_ncfg{n_cfg}.h5" for q in q_pack_list]
+filenames = [SAVE_DIR / f"FF_streamd_{smear}0-{n_level - 1}_w0-{n_w - 1}_boost{boost_direction}_q{q[0]}_{q[1]}_{q[2]}_ncfg{n_cfg}.h5" for q in q_pack_list]
 out = [h5py.File(f"{name}.tmp", "w") for name in filenames]
 dsets = [f.create_dataset("FF", shape=(n_cfg, 6, 6, n_level, n_w, Lt), dtype="<c16") for f in out]
 

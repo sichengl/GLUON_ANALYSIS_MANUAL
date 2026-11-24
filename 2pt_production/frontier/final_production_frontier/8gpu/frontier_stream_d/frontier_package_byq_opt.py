@@ -35,7 +35,7 @@ pack_list = [["forward", [0, 0, 0]], ["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["
 particle_list = ["pion", "proton"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
 project_proton = True             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
 n_workers = 16                     # worker processes reading cfgs in parallel (the main process writes); about 2.5 GB each with the proton, 0.2 GB pion only
-save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/final_production_byq_streamd"      # stream d only: the file names do not say the stream
+save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/final_production_byq_streamd"      # stream d only;  the file names say streamd
 
 
 tsep_max = delta_params.tsep_max
@@ -155,7 +155,7 @@ proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else
 
 def file_name(frame, q, role, particle):
     name_tag = f"{smear_tag}_GEVP_{frame}_q{q[0]}_{q[1]}_{q[2]}_{role}_fb_tsep{tsep_max}_{n_src}src_ncfg{n_cfg}"
-    return f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
+    return f"{save_dir}/2pt_streamd_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
 
 filenames = {(i, particle): file_name(frame, q, role, particle) for i, (frame, q, role, _, _, _, _, _) in enumerate(read_plan) for particle in particle_list}
 src_lists = {name: np.zeros((n_cfg, n), int) for name, n in [("t_src_list", n_tsrc), ("x_src_list", len(delta_params.x_base)),

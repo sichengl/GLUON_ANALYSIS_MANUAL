@@ -1,7 +1,7 @@
 #Compares the 2pt of the test job (test_2pt_same_as_production.sh, --boost_direction z) with the production 2pt of the same cfg.
 #Run on a Delta login node after the test job has ended (TIMEOUT is its expected end):
 #    source ~/env_pyquda.sh
-#    python compare_2pt_with_production.py --cfg 2682
+#    python compare_2pt_with_production_streame.py --cfg 2682
 #It only reads. For each of the 12 files (pion and proton x 6 cases) and for pt2_forward and pt2_backward it takes every t_src the test has saved
 #(the parts of an unfinished cfg, or the .h5 of a finished one) and compares it with the same t_src of the production .h5 file.
 #Printed per file: how many numbers were compared, whether they are equal bit for bit, and the largest relative difference of a single number,
@@ -19,7 +19,7 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg", type=int, default=2682)                                                                   # cfg number, 204 + 6 * ICFG of the test job
 parser.add_argument("--test_dir", type=str, default="/work/hdd/biqz/sliu54/2pt_production/test_directionxyz")          # TEST_DIR of the test job
-parser.add_argument("--prod_dir", type=str, default="/work/hdd/biqz/sliu54/2pt_production/final_production_3072src_200cfg")   # current_dir of the production setup
+parser.add_argument("--prod_dir", type=str, default="/work/hdd/biqz/sliu54/2pt_production/final_production_3072src_200cfg_streame")   # current_dir of the production setup
 parser.add_argument("--threshold", type=float, default=1e-6)
 args = parser.parse_args()
 

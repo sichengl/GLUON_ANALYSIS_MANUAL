@@ -8,10 +8,10 @@
 #SBATCH -e ./logs/pt2_test_%j.err
 
 # TEST: does the direction version give the same 2pt as the stream-d production on Frontier?
-# Runs 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py of this folder with --boost_direction z on ONE cfg that the stream-d production has
+# Runs 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_streamd.py of this folder with --boost_direction z on ONE cfg that the stream-d production has
 # already finished with the current setup (solver tol 1e-8, _smear files): cfg_list[2] = cfg 216 of batch 1 (Flux jobs 5845021 and 5845023).
 # The job is cut by the 2 h limit on purpose (TIMEOUT is the expected end): by then the first 2-3 t_src (128 sources each, about 38 min each at
-# 18 s per source) are saved as parts. compare_2pt_with_production.py then compares these parts with the same t_src of the production .h5 files.
+# 18 s per source) are saved as parts. compare_2pt_with_production_streamd.py then compares these parts with the same t_src of the production .h5 files.
 #
 # The test writes to its own folder TEST_DIR, never to the production folder: only the COPY of the setup in the run folder gets another
 # current_dir (the sed line below). Everything else is the one-node job script 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.sh of this folder.
@@ -21,8 +21,8 @@
 # Slurm opens the -o/-e files before this script starts: run "mkdir -p logs" in the submit directory before the first sbatch.
 cd $SLURM_SUBMIT_DIR
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py
-SETUP=sepq_2pt_setup_frontier_final_8gcd.py
+SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_streamd.py
+SETUP=sepq_2pt_setup_frontier_final_8gcd_streamd.py
 SUBMIT=test_2pt_same_as_production.sh             # name of this file, used for its copy in the run folder
 SMEAR=coulomb_smearing_boost_direction.py      # in this folder: the copy of 2pt_production/tools/coulomb_smearing.py with the boost_direction argument
 COMM=../../../../tools/pt2_comm_tools.py       # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)

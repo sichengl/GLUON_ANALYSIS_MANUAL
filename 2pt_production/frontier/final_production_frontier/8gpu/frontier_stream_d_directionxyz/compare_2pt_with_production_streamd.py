@@ -1,9 +1,9 @@
 #Compares the 2pt of the test job (test_2pt_same_as_production.sh, --boost_direction z) with the stream-d production 2pt of the same cfg.
-#The Frontier copy of delta/final_decision_for_production_delta/smear_v1_directionxyz/compare_2pt_with_production.py: only the defaults
+#The Frontier copy of delta/final_decision_for_production_delta/smear_v1_directionxyz/compare_2pt_with_production_streame.py: only the defaults
 #(--cfg, --test_dir, --prod_dir) and these comment lines differ.
 #Run on a Frontier login node after the test job has ended (TIMEOUT is its expected end):
 #    . /ccs/home/syritsyn/build/frontier/pyquda-2025/env.sh
-#    python3 compare_2pt_with_production.py --cfg 216
+#    python3 compare_2pt_with_production_streamd.py --cfg 216
 #It only reads. For each of the 12 files (pion and proton x 6 cases) and for pt2_forward and pt2_backward it takes every t_src the test has saved
 #(the parts of an unfinished cfg, or the .h5 of a finished one) and compares it with the same t_src of the production .h5 file.
 #Printed per file: how many numbers were compared, whether they are equal bit for bit, and the largest relative difference of a single number,

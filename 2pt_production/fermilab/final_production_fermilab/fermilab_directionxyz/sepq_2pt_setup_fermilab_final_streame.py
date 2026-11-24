@@ -1,7 +1,10 @@
-#Delta final run on stream e: 800 cfgs (204, 210, ..., 4998) with the 24t x 4x x 4y x 8z = 3072 sources per cfg, the two smearings chosen by the
-#smearing tuning (runs 1-4, smear _tuning/), each with its own boost (see smear_list), and three gammas (G5, G5G4, G3G5): the 2 x 3 = 6 interpolators
-#of the GEVP. Source and sink smearings run over both entries of smear_list, so the files hold the full 6 x 6 matrix.
-#Based on sepq_2pt_setup_delta_classused_streame_test_200cfg.py: differs in the source grid, the smearings, the gauge-fixing steps and the output folder.
+#Fermilab final run (fermilab_directionxyz), stream e for now: the setup of the Delta direction run
+#(delta/final_decision_for_production_delta/smear_v1_directionxyz/sepq_2pt_setup_delta_final_streame.py), the same physics, the same 800 cfgs (204, 210, ..., 4998),
+#the same 3072 sources per cfg, the same solver tol 1e-8 and the same 4-GPU grid [1,1,1,4]. It differs only in the three paths at the bottom.
+#ANOTHER STREAM: change the lines marked STREAM (grep -n STREAM *.py lists them, the packer's save_dir included): gauge_file_prefix, current_dir and,
+#only if its cfgs are not numbered 204, 210, ..., 4998, cfg_first, cfg_step and the 800 of cfg_list (cfg_first also sets the source positions).
+#current_dir MUST change with the stream: the file names do not say the stream, so in a shared folder a cfg number finished in one stream is skipped in the other.
+#The parameter object keeps Delta's name, delta_params, so that the 2pt script differs from Delta's only in its setup import.
 import numpy as np
 from pt2_comm_tools import TwoPtParams          # tools/pt2_comm_tools.py: the job script copies it into the run folder
 
@@ -13,8 +16,8 @@ delta_params = TwoPtParams()
 #lattice and cfgs
 delta_params.GLs = 32
 delta_params.GLt = 96
-delta_params.cfg_first = 204
-delta_params.cfg_step = 6
+delta_params.cfg_first = 204          #STREAM: first cfg of the stream (stream e: 204)
+delta_params.cfg_step = 6             #STREAM: step between cfgs (stream e: 6)
 
 #sources of the first cfg; they move by temporal_shift and spatial_shift from one cfg to the next
 delta_params.t_base = np.arange(0, delta_params.GLt, 4)     # 24 t_src
@@ -76,7 +79,7 @@ delta_params.fb_index = {"pt2_forward": forward_index, "pt2_backward": backward_
 
 
 #======== cfgs, smearing operators and momentum tables (not in the class) ========
-cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delta_params.cfg_step, delta_params.cfg_step)    # stream e 204, 210, ..., 4998
+cfg_list = np.arange(delta_params.cfg_first, delta_params.cfg_first + 800 * delta_params.cfg_step, delta_params.cfg_step)    #STREAM: stream e 204, 210, ..., 4998
 cfg_measure_spacing = 1
 src_phase_sign = -1
 n_spatial_src = len(delta_params.x_base) * len(delta_params.y_base) * len(delta_params.z_base)
@@ -120,6 +123,6 @@ transfer_note = ("P_f = P_i + q (physical momenta, equal to the labels): source 
 
 
 #======== path definitions ========
-current_dir = "/work/hdd/biqz/sliu54/2pt_production/final_production_3072src_200cfg"
-quda_resource_path = "/u/sliu54/QUDA_resources/.cache/quda"
-gauge_file_prefix = "/work/hdd/biqz/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     # stream e, copied from Frontier with Globus
+current_dir = "/lustre2/gluonp0/sliu1/2pt_production/final_production_3072src_streame"            #STREAM: one folder per stream (the file names do not say the stream)
+quda_resource_path = "/lustre2/gluonp0/sliu1/.cache/quda"                 # the tuning cache of the earlier Fermilab 2pt runs (same lattice and grid)
+gauge_file_prefix = "/lustre2/gluonp0/sliu1/MILC/l3296f211b630m0074m037m440e/l3296f211b630m0074m037m440e"     #STREAM: stream e, copied from Frontier with Globus

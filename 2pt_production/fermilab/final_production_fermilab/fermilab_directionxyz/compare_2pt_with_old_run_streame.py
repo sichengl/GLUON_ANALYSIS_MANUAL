@@ -1,10 +1,10 @@
 #Compares the 2pt of the test job (test_2pt_same_as_before_cfg204.sh, --boost_direction z) with the earlier Fermilab run of the same cfg.
-#The Fermilab copy of delta/final_decision_for_production_delta/smear_v1_directionxyz/compare_2pt_with_production.py, which also reads the earlier
+#The Fermilab copy of delta/final_decision_for_production_delta/smear_v1_directionxyz/compare_2pt_with_production_streame.py, which also reads the earlier
 #layout: the files of the runs before 2026-10-22 (smear_tag ..._paired) have the axes (shape, shape, frac, frac, gamma, gamma, ...) and only their
 #blocks [a, b, a, b] are computed, so those blocks are compared with [a, b] of the new files (..._smear, axes (smear, smear, gamma, gamma, ...)).
 #Run on a Fermilab login node after the test job has ended (TIMEOUT is its expected end), from this folder:
 #    source ~/miniforge3/etc/profile.d/conda.sh; conda activate pyquda
-#    python3 compare_2pt_with_old_run.py
+#    python3 compare_2pt_with_old_run_streame.py
 #It only reads. It first checks that the earlier files have the smearings of this setup and the source positions this setup gives the cfg.
 #Then for each of the 12 files (pion and proton x 6 cases) and for pt2_forward and pt2_backward it takes every t_src the test has saved
 #(the parts of an unfinished cfg, or the .h5 of a finished one) and compares it with the same t_src of the earlier .h5 file.
@@ -22,7 +22,7 @@ import numpy as np
 
 here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, three levels up from this folder
-from sepq_2pt_setup_fermilab_final import delta_params
+from sepq_2pt_setup_fermilab_final_streame import delta_params
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg", type=int, default=204)                                                                    # cfg number, cfg_list[ICFG] of the test job

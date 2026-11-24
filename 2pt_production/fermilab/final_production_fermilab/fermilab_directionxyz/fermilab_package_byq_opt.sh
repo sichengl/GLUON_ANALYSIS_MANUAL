@@ -11,7 +11,7 @@
 #SBATCH -J pack_byq_opt
 #SBATCH -o pack_byq_opt_%j.out
 #SBATCH -e pack_byq_opt_%j.out
-#Packs every finished cfg with fermilab_package_byq_opt.py (n_workers = 16 reader processes, about 2.5 GB each with the proton) on one lq2_gpu node;
+#Packs every finished cfg with fermilab_package_byq_opt_streame.py (n_workers = 16 reader processes, about 2.5 GB each with the proton) on one lq2_gpu node;
 #the GPU is not used, it is requested only because lq2_gpu is a GPU partition. Submit from this folder:
 #    sbatch --export=ALL,BOOST_DIRECTION=x fermilab_package_byq_opt.sh          (x, y or z; z if it is not set)
 #The Fermilab copy of delta/final_decision_for_production_delta/smear_v1_directionxyz/delta_package_byq_opt.sh: the Fermilab header and environment
@@ -27,4 +27,4 @@ conda activate pyquda
 
 BOOST_DIRECTION=${BOOST_DIRECTION:-z}             # the run to pack: lattice axis of the boost
 stamp() { while read line; do echo "$(date +%T) $line"; done; }     # clock time in front of every printed line
-time (python3 -u fermilab_package_byq_opt.py --boost_direction $BOOST_DIRECTION | stamp)
+time (python3 -u fermilab_package_byq_opt_streame.py --boost_direction $BOOST_DIRECTION | stamp)

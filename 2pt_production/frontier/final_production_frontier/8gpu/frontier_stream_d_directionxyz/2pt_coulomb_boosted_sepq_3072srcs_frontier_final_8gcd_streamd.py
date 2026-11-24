@@ -11,7 +11,7 @@ from cupy.cuda.runtime import deviceSynchronize
 from tqdm import tqdm
 from coulomb_smearing_boost_direction import coulomb_boosted_source, coulomb_boosted_sink, coulomb_gauge_theta      # in this folder: tools/coulomb_smearing.py + boost_direction
 from pt2_comm_tools import make_eps, release_cupy_cache, log_gpu_memory # tools/pt2_comm_tools.py
-from sepq_2pt_setup_delta_final import *  # delta_params (the TwoPtParams of this run), cfg list, smearing operators, momentum tables, notes, paths
+from sepq_2pt_setup_frontier_final_8gcd_streamd import *  # delta_params (the TwoPtParams of this run), cfg list, smearing operators, momentum tables, notes, paths
 
 import sys, traceback
 from mpi4py import MPI
@@ -27,10 +27,12 @@ sys.excepthook = abort_on_error
 #Final run: 2pt (pion + proton) in the sepq kinematics with the two tuned smearings of smear_list ([4.5, 2.25, 0.8] and [1.5, 1.5, 0]) and three
 #gammas. Every source smearing is inverted once and its solutions are sink smeared with every entry of smear_list, so the files hold the full
 #(2 smearings x 3 gammas) = 6 x 6 matrix for the GEVP. The Delta copy of 2pt_coulomb_boosted_sepq_1024srcs_delta_streame_test.py with the setup
-#sepq_2pt_setup_delta_final.py; the only change in this file is the gauge-fixing check, which skips a cfg instead of stopping the job.
+#sepq_2pt_setup_delta_final_streame.py; the only change in this file is the gauge-fixing check, which skips a cfg instead of stopping the job.
 #
 #Direction version (smear_v1_directionxyz): --boost_direction x, y or z (default z) is the lattice axis of the boost. Every place that depends on it
 #is marked DIRECTION and is an "if boost_direction ==". With z this file does what the script of smear_v1_running/delta_stream_e_running does.
+#Frontier copy (frontier_stream_d_directionxyz) of delta/final_decision_for_production_delta/smear_v1_directionxyz/2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py:
+#the only change in this file is the setup import, sepq_2pt_setup_frontier_final_8gcd_streamd.py (the stream-d setup: 8 GCDs [1,1,1,8], Orion directories).
 
 
 parser = argparse.ArgumentParser()
