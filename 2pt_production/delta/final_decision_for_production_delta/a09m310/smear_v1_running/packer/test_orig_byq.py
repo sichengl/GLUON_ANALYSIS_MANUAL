@@ -19,7 +19,7 @@ import numpy as np
 import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [here, os.path.join(here, "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools
+sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, five levels up from this folder
 from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 cfg_list = np.array([900, 906, 912, 918, 924, 930, 936, 942, 1434, 1440, 1446, 1452, 1458, 1464, 1470, 1476])     # TEST: set A of test_opt_byq.py, 8 cfgs of the _paired folder (<= 1398) and 8 of the _smear folder
 

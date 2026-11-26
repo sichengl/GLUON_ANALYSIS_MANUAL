@@ -17,12 +17,12 @@
 # STEP_TIME is a time limit for each cfg's run: a stuck run is killed at that time instead of keeping the 199 finished nodes waiting (charged) until the
 # job limit; its saved t_src stay on disk for a later job. Next batches: ICFG_START=200, 400, 600.
 # Test first:  ICFG_START=0 sbatch -N 2 -t 02:00:00 <this file>      (cfgs 204, 210: Flux starts both runs, about 1-2 t_src each are saved)
-# Every job runs in its own folder runs/final_8gcd_flux_<jobid>, on copies of the python files; the folder also keeps this sbatch script, the Flux
+# Every job runs in its own folder runs/a09m310_streame_direction_x_flux_<jobid>, on copies of the python files; the folder also keeps this sbatch script, the Flux
 # submit script and one log per cfg (flux_logs/).
-# Direction version (a09m310/frontier_2pt_production_a09m310_stream_e_direction_x): the lattice axis of the boost comes from BOOST_DIRECTION (x, y or z; x if it is not set):
+# Direction version (a09m310/frontier_2pt_production_a09m310_stream_e_direction_x): the code takes the boost axis from BOOST_DIRECTION, but this folder is the x production (current_dir ends in _direction_x): only x is accepted:
 #     BOOST_DIRECTION=x ICFG_START=0 sbatch 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_flux.sh
-# Each direction writes to its own folder inside current_dir of the setup: ..._smear_direction_x_GEVP_..., ..._smear_direction_y_GEVP_..., ..._smear_direction_z_GEVP_...
-# Output: current_dir a09m310_final_production_3072src_8gcd_streame of the setup, a folder of its own; folder and file names start with a09m310 (smear_tag of the setup).
+# A y or z production needs a folder of its own (a copy of this one with _direction_y or _direction_z in current_dir, RUNDIR and the direction checks).
+# Output: current_dir a09m310_final_production_3072src_8gcd_streame_direction_x of the setup; folder and file names start with a09m310_streame (smear_tag of the setup) and carry _direction_x.
 cd $SLURM_SUBMIT_DIR
 mkdir -p logs
 SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_a09m310_streame.py
@@ -33,7 +33,8 @@ COMM=../../../../../tools/pt2_comm_tools.py       # the shared TwoPtParams class
 
 # no default batch: a forgotten ICFG_START would silently rerun batch 0
 [ -n "$ICFG_START" ] || { echo "set ICFG_START, e.g. ICFG_START=0 sbatch $SUBMIT"; exit 1; }
-BOOST_DIRECTION=${BOOST_DIRECTION:-x}             # lattice axis of the boost: x, y or z (x if it is not set: this folder is the x production)
+[ "${BOOST_DIRECTION:-x}" = x ] || { echo "BOOST_DIRECTION=$BOOST_DIRECTION refused: this folder is the x production (current_dir ends in _direction_x)"; exit 1; }
+BOOST_DIRECTION=x                                 # lattice axis of the boost: x only in this folder
 
 # fail fast if a file the script imports is missing
 for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM"; do
@@ -41,7 +42,7 @@ for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM"; do
 done
 
 # run folder: copies of exactly what runs (python imports these copies), this sbatch script, links to the two log files
-RUNDIR=$SLURM_SUBMIT_DIR/runs/final_8gcd_flux_${SLURM_JOB_ID}
+RUNDIR=$SLURM_SUBMIT_DIR/runs/a09m310_streame_direction_x_flux_${SLURM_JOB_ID}
 mkdir -p "$RUNDIR/flux_logs" || exit 1
 cp "$SCRIPT" "$SETUP" "$SMEAR" "$COMM" "$RUNDIR"/ || exit 1
 cp "$0" "$RUNDIR/$SUBMIT" || cp "$SUBMIT" "$RUNDIR/$SUBMIT"      # $0 is the copy of this script that Slurm is running

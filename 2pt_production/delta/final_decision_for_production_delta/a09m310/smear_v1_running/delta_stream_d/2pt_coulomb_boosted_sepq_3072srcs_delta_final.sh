@@ -9,12 +9,12 @@
 #SBATCH --mem=208G
 #SBATCH --exclusive
 #SBATCH --no-requeue
-#SBATCH -J pt2_final
+#SBATCH -J pt2_final_d
 #SBATCH --array=0-198:3
 #SBATCH -o ./logs/pt2_final_%A_%a.out
 #SBATCH -e ./logs/pt2_final_%A_%a.err
 
-# Final run: 200 stream-e cfgs (204, 210, ..., 1398) with the 24t x 4x x 4y x 8z = 3072 sources per cfg, the two tuned smearings [4.5, 2.25, 0.8]
+# Final run: 800 stream-d cfgs (204, 210, ..., 4998) with the 24t x 4x x 4y x 8z = 3072 sources per cfg, the two tuned smearings [4.5, 2.25, 0.8]
 # and [1.5, 1.5, 0] at source and sink (the full 2 x 2 smearing matrix) and three gammas: the 6 x 6 GEVP matrix. 2pt (pion + proton), sepq kinematics,
 # Coulomb-gauge boosted smearing, 4 A100-40GB GPUs on one Delta gpuA100x4 node, grid [1,1,1,4].
 # Array task i measures cfg_list[i], cfg_list[i+1], cfg_list[i+2] (--n 3): 67 tasks, the last one has 2 cfgs.
@@ -28,8 +28,8 @@ mkdir -p logs
 SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_delta_final.py
 SETUP=sepq_2pt_setup_delta_final.py
 SUBMIT=2pt_coulomb_boosted_sepq_3072srcs_delta_final.sh               # name of this file, used for its copy in the run folder
-SMEAR=../../tools/coulomb_smearing.py          # the only copy: 2pt_production/tools, two levels up from 2pt_production/delta/<this folder>
-COMM=../../tools/pt2_comm_tools.py             # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
+SMEAR=../../../../../tools/coulomb_smearing.py    # the only copy: 2pt_production/tools, five levels up from 2pt_production/delta/final_decision_for_production_delta/a09m310/smear_v1_running/<this folder>
+COMM=../../../../../tools/pt2_comm_tools.py       # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
 
 # fail fast if a file the script imports is missing
 for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM"; do

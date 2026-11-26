@@ -25,17 +25,17 @@ import numpy as np
 import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "tools")]  # the setup imports pt2_comm_tools from 2pt_production/tools
+sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, five levels up from this folder
 from sepq_2pt_setup_delta_final import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 
 
 #======== what to pack ========
-pack_list = [["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["sym", [0, 2, 0]], ["sym", [0, -2, 0]]]   # (frame, q), q in units of 2pi/L, one set of files per entry; e.g. [["sym", [2, 0, 0]], ["asy", [1, 0, 0]], ["forward", [0, 0, 0]]]
+pack_list = [["forward", [0, 0, 0]], ["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["sym", [0, 2, 0]], ["sym", [0, -2, 0]]]   # (frame, q), q in units of 2pi/L, one set of files per entry; e.g. [["sym", [2, 0, 0]], ["asy", [1, 0, 0]], ["forward", [0, 0, 0]]]
                                    # frame "sym": P = (p_f + p_i)/2 = (0,0,pz); "asy": p_i = (0,0,pz); "forward": q = 0, p_f = p_i = (0,0,pz)
-particle_list = ["pion"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
-project_proton = False             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
+particle_list = ["pion", "proton"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
+project_proton = True             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
 n_workers = 16                     # worker processes reading cfgs in parallel (the main process writes); about 2.5 GB each with the proton, 0.2 GB pion only
-save_dir = "/work/hdd/biqz/sliu54/2pt_production/packed/final_production_byq_smear_v2"      # /work/hdd: /projects is too small; not the smear_v1 folder, whose packs the notebooks' globs would also match
+save_dir = "/work/hdd/biqz/sliu54/2pt_production/packed/final_production_byq"      # /work/hdd: /projects is too small
 
 
 tsep_max = delta_params.tsep_max
@@ -155,7 +155,7 @@ proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else
 
 def file_name(frame, q, role, particle):
     name_tag = f"{smear_tag}_GEVP_{frame}_q{q[0]}_{q[1]}_{q[2]}_{role}_fb_tsep{tsep_max}_{n_src}src_ncfg{n_cfg}"
-    return f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
+    return f"{save_dir}/2pt_streame_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
 
 filenames = {(i, particle): file_name(frame, q, role, particle) for i, (frame, q, role, _, _, _, _, _) in enumerate(read_plan) for particle in particle_list}
 src_lists = {name: np.zeros((n_cfg, n), int) for name, n in [("t_src_list", n_tsrc), ("x_src_list", len(delta_params.x_base)),
@@ -209,7 +209,7 @@ finally:
 dirac = [] if project_proton else ["dirac_sink", "dirac_source"]
 common_attrs = {
     "gamma_list": pion_attrs["gamma_list"],
-    "smearing": smearing_note + ". Packed smearing axes: smear_sink, smear_source = 0, 1 or 2, rows of the smear_list dataset [rho_T, rho_z, mom_frac]",
+    "smearing": smearing_note + ". Packed smearing axes: smear_sink, smear_source = 0 or 1, rows of the smear_list dataset [rho_T, rho_z, mom_frac]",
     "gauge_fixing": pion_attrs["gauge_fixing"],
     "momentum_convention": pion_attrs["momentum_convention"],
     "momentum_transfer": pion_attrs["momentum_transfer"],

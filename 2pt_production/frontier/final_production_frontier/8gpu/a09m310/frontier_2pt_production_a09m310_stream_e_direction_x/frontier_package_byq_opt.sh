@@ -8,9 +8,10 @@
 #SBATCH -e pack_streame_%j.out
 #Packs every finished a09m310 stream-e cfg with frontier_package_byq_opt_a09m310_streame.py (n_workers = 16 reader processes, about 2.5 GB each with the proton) on one Frontier
 #node; the GPUs are not used. Submit from this folder:
-#    BOOST_DIRECTION=x sbatch frontier_package_byq_opt.sh          (x, y or z; x if it is not set)
+#    sbatch frontier_package_byq_opt.sh          (x only in this folder)
 set -o pipefail                    # a python failure fails the job (sacct FAILED), as in the production scripts
 . /ccs/home/syritsyn/build/frontier/pyquda-2025/env.sh
 cd $SLURM_SUBMIT_DIR
-BOOST_DIRECTION=${BOOST_DIRECTION:-x}             # the run to pack: lattice axis of the boost
+[ "${BOOST_DIRECTION:-x}" = x ] || { echo "BOOST_DIRECTION=$BOOST_DIRECTION refused: this folder is the x production (current_dir ends in _direction_x)"; exit 1; }
+BOOST_DIRECTION=x                                 # the run to pack: x only in this folder
 time python3 -u frontier_package_byq_opt_a09m310_streame.py --boost_direction $BOOST_DIRECTION

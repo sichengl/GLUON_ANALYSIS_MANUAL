@@ -8,7 +8,7 @@
 #Every file holds one q and has no q axis: to get a q axis, stack the C3input files of several (frame, q).
 #Run it on Frontier, CPU only, with the setup next to it: BOOST_DIRECTION=x sbatch frontier_package_byq_opt.sh (the Frontier a09m310 stream-e copy of
 #delta/final_decision_for_production_delta/smear_v1_directionxyz/delta_package_byq_opt_streame.py: only the tools path, the setup import and save_dir differ)
-#Direction version (smear_v1_directionxyz): ONE packer for the three boost directions. --boost_direction x, y or z (default x in this folder) says which run to pack.
+#Direction version (smear_v1_directionxyz): ONE packer for the three boost directions. --boost_direction x, y or z says which run to pack; in this folder only x (current_dir of the setup is the x production).
 #Every place that depends on it is marked DIRECTION. With z it packs what smear_v1_running/packer/delta_package_byq_opt.py packs.
 #pack_list is the same for every direction: the q of the files are labels as seen from the boost direction, (a, b, c) with c along the boost.
 #Same files as delta_package_byq.py, read faster: each per-cfg file is read once per cfg, in whole contiguous blocks, and every entry of read_plan takes its
@@ -34,7 +34,7 @@ sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "..", "tools")]
 from sepq_2pt_setup_frontier_final_8gcd_a09m310_streame import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--boost_direction", type=str, default="x", choices=["x", "y", "z"])      # lattice axis of the boost of the run to pack
+parser.add_argument("--boost_direction", type=str, default="x", choices=["x"])      # lattice axis of the boost of the run to pack: x only in this folder
 args = parser.parse_args()
 boost_direction = args.boost_direction
 
@@ -45,7 +45,7 @@ pack_list = [["forward", [0, 0, 0]], ["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["
 particle_list = ["pion", "proton"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
 project_proton = True             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
 n_workers = 16                     # worker processes reading cfgs in parallel (the main process writes); about 2.5 GB each with the proton, 0.2 GB pion only
-save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/a09m310_final_production_byq_streame"      # a09m310 stream e only;  the file names say streame and a09m310
+save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/a09m310_final_production_byq_streame_direction_x"      # a09m310, stream e, direction x only;  the file names say all three
 
 
 tsep_max = delta_params.tsep_max
@@ -176,7 +176,7 @@ proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else
 
 def file_name(frame, q, role, particle):
     name_tag = f"{smear_tag}_GEVP_{frame}_q{q[0]}_{q[1]}_{q[2]}_{role}_fb_tsep{tsep_max}_{n_src}src_ncfg{n_cfg}"
-    return f"{save_dir}/2pt_streame_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
+    return f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
 
 filenames = {(i, particle): file_name(frame, q, role, particle) for i, (frame, q, role, _, _, _, _, _) in enumerate(read_plan) for particle in particle_list}
 #DIRECTION: the number of x, y and z sources comes from the files, not from the setup: the 8 sources with spacing 4 are along the boost direction
