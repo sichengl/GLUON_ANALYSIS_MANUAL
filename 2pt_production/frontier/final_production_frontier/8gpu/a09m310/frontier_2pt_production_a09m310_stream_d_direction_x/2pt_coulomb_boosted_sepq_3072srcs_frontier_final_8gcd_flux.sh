@@ -3,11 +3,11 @@
 #SBATCH -p batch
 #SBATCH -t 12:00:00
 #SBATCH -N 200
-#SBATCH -J pt2_final_8gcd_d_flux
+#SBATCH -J pt2_boost_8gcd_d_flux
 #SBATCH -o ./logs/pt2_final_8gcd_d_flux_%j.out
 #SBATCH -e ./logs/pt2_final_8gcd_d_flux_%j.err
 
-# Final run on Frontier, stream d, many nodes at once: one cfg per node, each run the same 8-rank run as 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.sh
+# Final run on Frontier, a09m310 stream d, direction x, many nodes at once: one cfg per node, each run the same 8-rank run as 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.sh
 # (same python files, --n 1), launched through Flux inside the Slurm job instead of one srun per node: the Frontier guide does not recommend more than
 # ~100 simultaneous sruns (each one talks to the shared Slurm controller) and recommends Flux for this ("Ensemble Jobs" -> "Flux in a Slurm allocation").
 # The job measures cfg_list[ICFG_START], ..., cfg_list[ICFG_START + nodes - 1]; a cfg whose gauge file is missing is skipped (its node stays idle).
@@ -19,16 +19,21 @@
 # Test first:  ICFG_START=0 sbatch -N 2 -t 02:00:00 <this file>      (cfgs 204, 210: Flux starts both runs, about 1-2 t_src each are saved)
 # Every job runs in its own folder runs/final_8gcd_flux_<jobid>, on copies of the python files; the folder also keeps this sbatch script, the Flux
 # submit script and one log per cfg (flux_logs/).
+# Direction version (a09m310/frontier_2pt_production_a09m310_stream_d_direction_x): the lattice axis of the boost comes from BOOST_DIRECTION (x, y or z; x if it is not set):
+#     BOOST_DIRECTION=x ICFG_START=0 sbatch 2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_flux.sh
+# Each direction writes to its own folder inside current_dir of the setup: ..._smear_direction_x_GEVP_..., ..._smear_direction_y_GEVP_..., ..._smear_direction_z_GEVP_...
+# Output: current_dir a09m310_final_production_3072src_8gcd_streamd of the setup, a folder of its own; folder and file names start with a09m310 (smear_tag of the setup). The 92 x cfgs of frontier_stream_d_directionxyz (old names, old folder) are computed again here.
 cd $SLURM_SUBMIT_DIR
 mkdir -p logs
-SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd.py
-SETUP=sepq_2pt_setup_frontier_final_8gcd.py
+SCRIPT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_a09m310_streamd.py
+SETUP=sepq_2pt_setup_frontier_final_8gcd_a09m310_streamd.py
 SUBMIT=2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_flux.sh          # name of this file, used for its copy in the run folder
-SMEAR=../../../../tools/coulomb_smearing.py    # the only copy: 2pt_production/tools, four levels up from 2pt_production/frontier/final_production_frontier/8gpu/<this folder>
-COMM=../../../../tools/pt2_comm_tools.py       # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
+SMEAR=coulomb_smearing_boost_direction.py      # in this folder: the copy of 2pt_production/tools/coulomb_smearing.py with the boost_direction argument
+COMM=../../../../../tools/pt2_comm_tools.py       # the shared TwoPtParams class, imported by the setup (only copy, in 2pt_production/tools)
 
 # no default batch: a forgotten ICFG_START would silently rerun batch 0
 [ -n "$ICFG_START" ] || { echo "set ICFG_START, e.g. ICFG_START=0 sbatch $SUBMIT"; exit 1; }
+BOOST_DIRECTION=${BOOST_DIRECTION:-x}             # lattice axis of the boost: x, y or z (x if it is not set: this folder is the x production)
 
 # fail fast if a file the script imports is missing
 for f in "$SCRIPT" "$SETUP" "$SMEAR" "$COMM"; do
@@ -63,7 +68,7 @@ export CUPY_CACHE_DIR=/lustre/orion/lgt132/scratch/sicheng/cupy_cache/${SLURM_JO
 export RUN_TMPDIR=/lustre/orion/lgt132/scratch/sicheng/tmp/${SLURM_JOB_ID}     # TMPDIR of the python runs (set in each run below); Flux itself keeps the node-local /tmp
 mkdir -p $TUNE_DIR $CUPY_CACHE_DIR $RUN_TMPDIR
 export LD_PRELOAD=/opt/cray/pe/mpich/8.1.31/gtl/lib/libmpi_gtl_hsa.so   # GPU transport layer for Cray MPICH GPU support; harmless with GDR off (GDR hangs intermittently on this build, keep it off)
-export SCRIPT STEP_TIME
+export SCRIPT STEP_TIME BOOST_DIRECTION
 
 # cfgs of this job: one per node from cfg_list[ICFG_START]; skip the ones whose gauge file is missing (the setup builds the name from gauge_file_prefix and cfg_list)
 cd "$RUNDIR"
@@ -75,7 +80,7 @@ while read ICFG CFG GAUGE; do
     if [ -f "$GAUGE" ]; then RUN_LIST="$RUN_LIST $ICFG:$CFG"; else echo "missing gauge file $GAUGE: icfg $ICFG skipped"; fi
 done < gauge_files.txt
 export RUN_LIST
-echo "nodes $SLURM_NNODES, icfg from $ICFG_START, runs: $(echo $RUN_LIST | wc -w), step time limit: ${STEP_TIME:-none}"
+echo "nodes $SLURM_NNODES, icfg from $ICFG_START, runs: $(echo $RUN_LIST | wc -w), step time limit: ${STEP_TIME:-none}, boost direction $BOOST_DIRECTION"
 
 # the script Flux runs on the first node: one Flux job per cfg (1 node, 8 ranks, 7 cores and the closest GCD per rank), then wait for all of them.
 # Flux copies this environment into every job. Each rank takes its GCD from CUDA_VISIBLE_DEVICES, which gpu-affinity=per-task sets (Frontier guide:
@@ -87,7 +92,7 @@ for PAIR in $RUN_LIST; do
     flux submit -N 1 -n 8 -c 7 --gpus-per-task=1 -o gpu-affinity=per-task -o cpu-affinity=per-task ${STEP_TIME:+-t $STEP_TIME} \
         --job-name=cfg$CFG --output=flux_logs/icfg${ICFG}_cfg${CFG}.log \
         bash -c 'export ROCR_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES; unset CUDA_VISIBLE_DEVICES HIP_VISIBLE_DEVICES; export TMPDIR=$RUN_TMPDIR
-                 exec python3 -m mpi4py $SCRIPT --icfg '$ICFG' --n 1'
+                 exec python3 -m mpi4py $SCRIPT --icfg '$ICFG' --n 1 --boost_direction $BOOST_DIRECTION'
 done
 flux queue drain                          # returns when every run has finished, failed or timed out
 flux jobs -a                              # one line per cfg: ST = CD finished, F failed, TO timed out, CA canceled

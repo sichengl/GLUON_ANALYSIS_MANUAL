@@ -1,4 +1,4 @@
-#Frontier final run on stream e, 8 GCDs per run (2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_streame.py): the setup of the Delta final run
+#Frontier final run on a09m310 stream e, 8 GCDs per run (2pt_coulomb_boosted_sepq_3072srcs_frontier_final_8gcd_a09m310_streame.py): the setup of the Delta final run
 #(delta/final_decision_for_production_delta/smear_v1/sepq_2pt_setup_delta_final.py) as it is, except the GPU grid (the 8 GCDs of one node instead of 4 A100s)
 #and the directories. The parameter object keeps Delta's name, delta_params, and Delta's 800 cfg numbers (204, 210, ..., 4998).
 import numpy as np
@@ -82,7 +82,7 @@ src_phase_sign = -1
 n_spatial_src = len(delta_params.x_base) * len(delta_params.y_base) * len(delta_params.z_base)
 smear_names = ["rho4p5z2p25", "rho1p5"]           # one name per row of delta_params.smear_list
 frac_str = [("%.3f" % frac).rstrip("0").rstrip(".").replace(".", "p") for rho_T, rho_z, frac in delta_params.smear_list]
-smear_tag = f"coulomb_{'-'.join(smear_names)}_frac{'-'.join(frac_str)}_smear"      # _smear: one smear axis per end (the _paired files of the earlier runs have separate shape and frac axes)
+smear_tag = f"a09m310_coulomb_{'-'.join(smear_names)}_frac{'-'.join(frac_str)}_smear"      # a09m310_: the ensemble, in every folder and file name; _smear: one smear axis per end (the _paired files of the earlier runs have separate shape and frac axes)
 
 P_list = np.array([[0, 0, pz] for pz in delta_params.pz_list])
 pf_forward_table    = P_list + np.array(delta_params.q_forward_list)[:, None]
@@ -120,6 +120,6 @@ transfer_note = ("P_f = P_i + q (physical momenta, equal to the labels): source 
 
 
 #======== path definitions ========
-current_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/final_production_3072src_8gcd_streame"
+current_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/a09m310_final_production_3072src_8gcd_streame"
 quda_resource_path = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/.cache/quda_final_8gcd"      # its own tuning cache: other GCD counts tune other kernels
 gauge_file_prefix = "/lustre/orion/lgt132/world-shared/DATA/MILC/a09m310/gauge/l3296f211b630m0074m037m440e"     # stream e

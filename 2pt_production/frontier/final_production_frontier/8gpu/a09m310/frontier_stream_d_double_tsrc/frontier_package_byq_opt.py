@@ -1,4 +1,4 @@
-#Packs the merged per-cfg files of the final run (2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py) per frame and momentum transfer q, for the local
+#Packs the merged per-cfg files of the final run (2pt_coulomb_boosted_sepq_3072srcs_delta_final.py) per frame and momentum transfer q, for the local
 #analysis. For every (frame, q) of pack_list it writes three files per particle of particle_list, each with a cfg axis:
 #  C3input: the 2pt of the case that holds q (source weight exp(-i 2pi/Ls q.x_src)); the input of the 3pt with the FF of the same q.
 #           Its ensemble mean is zero for q != 0, so it is not a 2pt for the ratio.
@@ -6,11 +6,7 @@
 #  C2pi:    the plain q = 0 2pt at the source momenta p_i(pz) = p_f(pz) - q: denominators of the ratio and the GEVP at the source
 #Frame "forward" (q = 0) writes the C3input file only: at q = 0 that file is also the C2pf and the C2pi file.
 #Every file holds one q and has no q axis: to get a q axis, stack the C3input files of several (frame, q).
-#Run it on Frontier, CPU only, with the setup next to it: BOOST_DIRECTION=x sbatch frontier_package_byq_opt.sh (the Frontier stream-e copy of
-#delta/final_decision_for_production_delta/smear_v1_directionxyz/delta_package_byq_opt_streame.py: only the tools path, the setup import and save_dir differ)
-#Direction version (smear_v1_directionxyz): ONE packer for the three boost directions. --boost_direction x, y or z (default z) says which run to pack.
-#Every place that depends on it is marked DIRECTION. With z it packs what smear_v1_running/packer/delta_package_byq_opt.py packs.
-#pack_list is the same for every direction: the q of the files are labels as seen from the boost direction, (a, b, c) with c along the boost.
+#Run it on Frontier, CPU only, with the setup next to it: sbatch frontier_package_byq_opt.sh (the Frontier stream-d copy of delta_package_byq_opt.py)
 #Same files as delta_package_byq.py, read faster: each per-cfg file is read once per cfg, in whole contiguous blocks, and every entry of read_plan takes its
 #q and momenta from that copy in memory. The per-cfg files are not chunked, so reading only the needed q or momenta from disk pulled in the whole block anyway,
 #in 64 KiB pieces, once per entry (the plain file 8 times per cfg for 4 sym q).
@@ -23,20 +19,14 @@
 #smear i as shape i with boost i only, so their blocks [a, b, a, b] are read; the packed files are the same either way (source_layout gives the folder of each cfg).
 import os
 import sys
-import argparse
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, four levels up from this folder
-from sepq_2pt_setup_frontier_final_8gcd_streame import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--boost_direction", type=str, default="z", choices=["x", "y", "z"])      # lattice axis of the boost of the run to pack
-args = parser.parse_args()
-boost_direction = args.boost_direction
+sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, five levels up
+from sepq_2pt_setup_frontier_final_8gcd import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 
 
 #======== what to pack ========
@@ -45,21 +35,14 @@ pack_list = [["forward", [0, 0, 0]], ["sym", [2, 0, 0]], ["sym", [-2, 0, 0]], ["
 particle_list = ["pion", "proton"]           # ["pion"] or ["pion", "proton"]: the particles to pack (the pion files also give the source positions)
 project_proton = True             # False: keep the proton's open Dirac indices; True: positive-parity projection (described in the projection attribute)
 n_workers = 16                     # worker processes reading cfgs in parallel (the main process writes); about 2.5 GB each with the proton, 0.2 GB pion only
-save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/final_production_byq_streame"      # stream e only;  the file names say streame
+save_dir = "/lustre/orion/lgt132/scratch/sicheng/GLUON_ANALYSIS_MANUAL/2pt_production/packed/final_production_byq_streamd_double_tsrc"      # stream d only: the file names do not say the stream
 
 
 tsep_max = delta_params.tsep_max
 n_src = len(delta_params.t_base) * n_spatial_src
 assert smear_tag.endswith("_smear"), f"smear_tag {smear_tag}: expected the current tag, ending in _smear"
 old_tag = smear_tag[:-len("_smear")] + "_paired"                     # the earlier runs, separate shape and frac axes
-#DIRECTION: the folders to read. z: the runs of the old code (_paired, then _smear) and of the direction code (_smear_direction_z).
-#x and y: only their own folder (_smear_direction_x or _smear_direction_y). The other folders hold z data and must not be read for them
-if boost_direction == "z":
-    tag_list = [old_tag, smear_tag, f"{smear_tag}_direction_z"]      # the packed names keep _smear: they hold cfgs of the old and of the direction code
-if boost_direction == "x" or boost_direction == "y":
-    smear_tag = f"{smear_tag}_direction_{boost_direction}"           # the tag of the job script; it is also in the names of the packed files
-    tag_list = [smear_tag]
-gevp_dirs = {tag: f"{current_dir}/{tag}_GEVP_sepq_{n_src}src_phyp_fb_tsep{tsep_max}" for tag in tag_list}     # gevp_dir of the job script
+gevp_dirs = {tag: f"{current_dir}/{tag}_GEVP_sepq_{n_src}src_phyp_fb_tsep{tsep_max}" for tag in [old_tag, smear_tag]}     # gevp_dir of the job script
 all_cases = ["forward", "sym_0xi", "sym_non0xi", "asy_0xi", "asy_non0xi", "plain"]
 frame_cases = {"forward": ["forward"], "sym": ["sym_0xi", "sym_non0xi"], "asy": ["asy_0xi", "asy_non0xi"]}
 pt2_names = ["pt2_forward", "pt2_backward"]
@@ -75,11 +58,11 @@ def h5_name(case, particle, cfg, tag=None):
 #finished cfgs: the merge has written all 12 files, in the folder of the earlier runs (looked at first) or of the current runs
 cfg_tag = {}
 for cfg in cfg_list:
-    for tag in tag_list:
+    for tag in [old_tag, smear_tag]:
         if int(cfg) not in cfg_tag and all(os.path.exists(h5_name(case, particle, int(cfg), tag)) for case in all_cases for particle in ["pion", "proton"]):
             cfg_tag[int(cfg)] = tag
 cfg_done = list(cfg_tag)
-for tag in tag_list:
+for tag in [old_tag, smear_tag]:
     print(f"{sum(t == tag for t in cfg_tag.values())} cfgs finished in {gevp_dirs[tag]}")
 print(f"{len(cfg_done)} of {len(cfg_list)} cfgs finished; not finished: {[int(cfg) for cfg in cfg_list if int(cfg) not in cfg_done]}")
 assert cfg_done, "no cfg to pack"
@@ -145,10 +128,6 @@ with h5py.File(h5_name("forward", "proton", cfg_done[0]), "r") as f:
     parity_p = f["parity_p"][:]                                       # (1 + gamma4) / 2
     parity_m = f["parity_m"][:]                                       # (1 - gamma4) / 2
     proton_attrs = dict(f["pt2_forward"].attrs)
-#DIRECTION: the files must be of the direction asked for. Files written before the direction version have no boost_direction attribute: they are z
-file_direction = pion_attrs["boost_direction"] if "boost_direction" in pion_attrs else "z"
-assert file_direction == boost_direction, f"--boost_direction {boost_direction}, but the files say {file_direction}"
-boost_direction_note = pion_attrs["boost_direction_note"] if "boost_direction_note" in pion_attrs else "boost along lattice z: all labels are lattice labels"
 n_tsrc = ref_shape[cases_used[0], "pion"][4]                    # (smear, smear, g, g, t_src, q, pz or p, tsep)
 
 #keep only the cfgs whose files open with that layout (a damaged or half-copied file is listed and left out)
@@ -176,12 +155,11 @@ proton_shape = (n_smear, n_smear, n_gamma, n_gamma) + (() if project_proton else
 
 def file_name(frame, q, role, particle):
     name_tag = f"{smear_tag}_GEVP_{frame}_q{q[0]}_{q[1]}_{q[2]}_{role}_fb_tsep{tsep_max}_{n_src}src_ncfg{n_cfg}"
-    return f"{save_dir}/2pt_streame_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
+    return f"{save_dir}/2pt_{name_tag}_{particle}{'_projected' if particle == 'proton' and project_proton else ''}.h5"
 
 filenames = {(i, particle): file_name(frame, q, role, particle) for i, (frame, q, role, _, _, _, _, _) in enumerate(read_plan) for particle in particle_list}
-#DIRECTION: the number of x, y and z sources comes from the files, not from the setup: the 8 sources with spacing 4 are along the boost direction
-src_lists = {name: np.zeros((n_cfg, n), int) for name, n in [("t_src_list", n_tsrc), ("x_src_list", len(pion_attrs["x_src_list"])),
-                                                              ("y_src_list", len(pion_attrs["y_src_list"])), ("z_src_list", len(pion_attrs["z_src_list"]))]}
+src_lists = {name: np.zeros((n_cfg, n), int) for name, n in [("t_src_list", n_tsrc), ("x_src_list", len(delta_params.x_base)),
+                                                              ("y_src_list", len(delta_params.y_base)), ("z_src_list", len(delta_params.z_base))]}
 
 def read_cfg(cfg):
     #run in a worker process: reads one cfg and returns its source positions and the arrays to write at its row, keyed like dsets
@@ -229,11 +207,6 @@ finally:
     pool.shutdown(cancel_futures=True)                                # on an error, the cfgs no worker has started are dropped instead of read
 
 dirac = [] if project_proton else ["dirac_sink", "dirac_source"]
-#DIRECTION: the folders the cfgs were read from
-if boost_direction == "z":
-    source_files_note = f"{gevp_dirs[old_tag]} for the cfgs with source_layout paired, {gevp_dirs[smear_tag]} and {gevp_dirs[smear_tag + '_direction_z']} for those with source_layout smear"
-if boost_direction == "x" or boost_direction == "y":
-    source_files_note = gevp_dirs[smear_tag]
 common_attrs = {
     "gamma_list": pion_attrs["gamma_list"],
     "smearing": smearing_note + ". Packed smearing axes: smear_sink, smear_source = 0 or 1, rows of the smear_list dataset [rho_T, rho_z, mom_frac]",
@@ -243,9 +216,7 @@ common_attrs = {
     "spatial_sources": pion_attrs["spatial_sources"],
     "time_index": pion_attrs["time_index"],
     "smear_list": smear_list,                                         # rows [rho_T, rho_z, mom_frac] of smear_sink and smear_source
-    "source_files": source_files_note,
-    "boost_direction": boost_direction,
-    "boost_direction_note": boost_direction_note,
+    "source_files": f"{gevp_dirs[old_tag]} for the cfgs with source_layout paired, {gevp_dirs[smear_tag]} for those with source_layout smear",
 }
 role_notes = {
     "C3input": ("2pt of case {case} at q = {q}, weighted at the source with exp(-i 2pi/Ls q.x_src): the 3pt input, to be contracted with the FF of the same q. "

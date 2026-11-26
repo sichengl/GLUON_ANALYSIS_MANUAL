@@ -25,7 +25,7 @@ import numpy as np
 import h5py
 
 here = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, four levels up
+sys.path[:0] = [here, os.path.join(here, "..", "..", "..", "..", "..", "tools")]        # the setup imports pt2_comm_tools from 2pt_production/tools, five levels up
 from sepq_2pt_setup_frontier_final_8gcd import delta_params, cfg_list, smear_tag, current_dir, n_spatial_src, smear_names, smearing_note
 
 

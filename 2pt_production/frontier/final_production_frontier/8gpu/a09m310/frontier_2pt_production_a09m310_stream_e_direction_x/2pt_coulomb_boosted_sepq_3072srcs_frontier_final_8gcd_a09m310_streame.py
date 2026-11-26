@@ -11,7 +11,7 @@ from cupy.cuda.runtime import deviceSynchronize
 from tqdm import tqdm
 from coulomb_smearing_boost_direction import coulomb_boosted_source, coulomb_boosted_sink, coulomb_gauge_theta      # in this folder: tools/coulomb_smearing.py + boost_direction
 from pt2_comm_tools import make_eps, release_cupy_cache, log_gpu_memory # tools/pt2_comm_tools.py
-from sepq_2pt_setup_frontier_final_8gcd_streame import *  # delta_params (the TwoPtParams of this run), cfg list, smearing operators, momentum tables, notes, paths
+from sepq_2pt_setup_frontier_final_8gcd_a09m310_streame import *  # delta_params (the TwoPtParams of this run), cfg list, smearing operators, momentum tables, notes, paths
 
 import sys, traceback
 from mpi4py import MPI
@@ -31,8 +31,8 @@ sys.excepthook = abort_on_error
 #
 #Direction version (smear_v1_directionxyz): --boost_direction x, y or z (default z) is the lattice axis of the boost. Every place that depends on it
 #is marked DIRECTION and is an "if boost_direction ==". With z this file does what the script of smear_v1_running/delta_stream_e_running does.
-#Frontier copy (frontier_stream_e_directionxyz) of delta/final_decision_for_production_delta/smear_v1_directionxyz/2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py:
-#the only change in this file is the setup import, sepq_2pt_setup_frontier_final_8gcd_streame.py (the stream-e setup: 8 GCDs [1,1,1,8], Orion directories).
+#Frontier copy (a09m310/frontier_2pt_production_a09m310_stream_e_direction_x) of delta/final_decision_for_production_delta/smear_v1_directionxyz/2pt_coulomb_boosted_sepq_3072srcs_delta_final_streame.py:
+#the only change in this file is the setup import, sepq_2pt_setup_frontier_final_8gcd_a09m310_streame.py (the a09m310 stream-e setup: 8 GCDs [1,1,1,8], Orion directories).
 
 
 parser = argparse.ArgumentParser()
