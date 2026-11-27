@@ -1,0 +1,239 @@
+"""
+NODE TEST copy (tchunk) of coulomb_smearing_boost_direction.py: the sink smearing can run on nt_chunk local time slices at a time (nt_chunk=None:
+the whole local lattice at once, exactly as before) and can write its result into the input array (in_place=True). The FFT acts on x, y, z only,
+so every time slice is smeared on its own and the result does not depend on nt_chunk. Two new helpers convert a few time slices between the
+even-odd layout of PyQUDA and the lexicographic layout: evenodd_to_lexico_slab and lexico_to_evenodd_slab. Everything else is unchanged.
+
+Copy of 2pt_production/tools/coulomb_smearing.py with one more argument, boost_direction ("x", "y" or "z", default "z"):
+the lattice axis that gets the width rho_z. The other two axes get rho_T. With "z" everything is as in the original file.
+The second change is one line in coulomb_gauge_theta, marked there.
+
+Boosted Gaussian smearing in Coulomb gauge: use it only on a Coulomb-gauge-fixed configuration.
+
+Source and sink are smeared with an explicit Gaussian times a plane wave, with no gauge links:
+
+    K(d) = exp(-(dx^2 + dy^2) / rho_T^2 - dz^2 / rho_z^2) * exp(+i 2pi/L k.d),    d = x - y (nearest periodic image)
+
+rho_T = rho_z is the isotropic smearing, rho_z = rho_T / 2 halves the radius along z.
+The formula is written for boost_direction "z". For "x" or "y" the width rho_z is along x or y and rho_T along the other two axes.
+k is always given on the lattice axes (x, y, z).
+k is in units of 2pi/L, with the same meaning as in mom_smearing.py:
+  - at rho_T = rho_z = rho this is the free-field limit of source.gaussianSmear(rho, n_steps),
+    whose profile is exp(-r^2 / rho^2);
+  - the sign of the phase reproduces add_momentum_phase_to_gauge(sign=-1).
+Both were verified on FNAL and on Frontier (2026-09-23): the isotropic source overlaps the free-field N40 rho3.25
+mom_smearing source at 0.9999 for the same k, and at 0.0761 (k = 3.6) and 0.5212 (k = 1.8) for the opposite k.
+coulomb_gauge_theta() measures how well the configuration satisfies the Coulomb condition the smearing relies on.
+mean_radius() measures the rms radius of a propagator (or a smeared source) around its source position.
+The Gaussian part is normalized to sum 1, as the Wuppertal smearing is at k = 0.
+
+The sink smearing is a 3D FFT on every time slice, so the spatial directions must not be split
+over MPI ranks: the process grid must be [1, 1, 1, Gt].
+"""
+
+import numpy
+
+try:
+    import cupy
+except ImportError:  # lets the pure-array functions be tested on a machine without a GPU
+    cupy = None
+
+Ns, Nc = 4, 3
+BOOST_PHASE_SIGN = +1  # +1 reproduces mom_smearing.py (verified, see above); do not change
+
+
+def array_module(a):
+    if cupy is not None:
+        return cupy.get_array_module(a)
+    return numpy
+
+
+# ---------------- the smearing kernel and its two uses, on plain arrays ----------------
+
+
+def _one_direction(xp, L, k, rho):
+    """Gaussian and boost phase along one direction, index i <-> displacement d = i for i < L/2 and d = i - L otherwise."""
+    d = (xp.arange(L) + L // 2) % L - L // 2
+    gaussian = xp.exp(-(d**2) / rho**2)
+    phase = xp.exp(1j * BOOST_PHASE_SIGN * 2 * numpy.pi * k * d / L)
+    if L % 2 == 0:
+        phase[L // 2] = numpy.cos(2 * numpy.pi * k * (L // 2) / L)  # average of the images d = +L/2 and -L/2: keeps K Hermitian
+    return gaussian, phase
+
+
+def boosted_gaussian_kernel(xp, spatial_size, kvec, rho_T, rho_z, boost_direction="z"):
+    """K[dz, dy, dx] for the displacement d = x - y. rho_z is the width along boost_direction, rho_T the width along the other two axes."""
+    Lx, Ly, Lz = spatial_size
+    if boost_direction == "x":
+        gx, px = _one_direction(xp, Lx, kvec[0], rho_z)
+        gy, py = _one_direction(xp, Ly, kvec[1], rho_T)
+        gz, pz = _one_direction(xp, Lz, kvec[2], rho_T)
+    if boost_direction == "y":
+        gx, px = _one_direction(xp, Lx, kvec[0], rho_T)
+        gy, py = _one_direction(xp, Ly, kvec[1], rho_z)
+        gz, pz = _one_direction(xp, Lz, kvec[2], rho_T)
+    if boost_direction == "z":
+        gx, px = _one_direction(xp, Lx, kvec[0], rho_T)
+        gy, py = _one_direction(xp, Ly, kvec[1], rho_T)
+        gz, pz = _one_direction(xp, Lz, kvec[2], rho_z)
+    gaussian = gz.reshape(Lz, 1, 1) * gy.reshape(1, Ly, 1) * gx.reshape(1, 1, Lx)
+    phase = pz.reshape(Lz, 1, 1) * py.reshape(1, Ly, 1) * px.reshape(1, 1, Lx)
+    return gaussian / gaussian.sum() * phase
+
+
+def source_lexico(xp, local_size, t_offset, kvec, src_pos, rho_T, rho_z, boost_direction="z"):
+    """Smeared source propagator [t, z, y, x, spin, spin, color, color], nonzero only on the source time slice."""
+    Lx, Ly, Lz, Lt = local_size
+    x0, y0, z0, t0 = src_pos
+    data = xp.zeros((Lt, Lz, Ly, Lx, Ns, Ns, Nc, Nc), "<c16")
+    t_local = t0 - t_offset
+    if 0 <= t_local < Lt:
+        kernel = boosted_gaussian_kernel(xp, [Lx, Ly, Lz], kvec, rho_T, rho_z, boost_direction)
+        eta = xp.roll(kernel, shift=(z0, y0, x0), axis=(0, 1, 2))  # eta(x) = K(x - x_src)
+        spin_identity = xp.eye(Ns).reshape(Ns, Ns, 1, 1)
+        color_identity = xp.eye(Nc).reshape(1, 1, Nc, Nc)
+        data[t_local] = eta.reshape(Lz, Ly, Lx, 1, 1, 1, 1) * spin_identity * color_identity #source is only nonzero in the diagonal dirac-color space
+    return data
+
+
+def evenodd_to_lexico_slab(xp, slab_evenodd, t_offset):
+    """
+    A few local time slices of a field from PyQUDA's even-odd layout [eo, t, z, y, x//2, ...] to [t, z, y, x, ...].
+    t_offset is the local time index of the first slice. PyQUDA's parity is (t + z + y + x) % 2 in local coordinates (the sublattice is even
+    in every direction), and the sites of one parity keep their lexicographic order, so in the row (t, z, y) the site x//2 of parity eo is
+    at x = 2 (x//2) + (eo + t + z + y) % 2.
+    """
+    nt, Lz, Ly, Lxh = slab_evenodd.shape[1:5]
+    t, z, y = xp.meshgrid(xp.arange(nt) + t_offset, xp.arange(Lz), xp.arange(Ly), indexing="ij")
+    slab_lexico = xp.empty((nt, Lz, Ly, 2 * Lxh) + slab_evenodd.shape[5:], slab_evenodd.dtype)
+    for eo in (0, 1):
+        x_even = (eo + t + z + y) % 2 == 0             # rows (t, z, y) whose sites of parity eo are at even x
+        slab_lexico[:, :, :, 0::2][x_even] = slab_evenodd[eo][x_even]
+        slab_lexico[:, :, :, 1::2][~x_even] = slab_evenodd[eo][~x_even]
+    return slab_lexico
+
+
+def lexico_to_evenodd_slab(xp, slab_lexico, t_offset):
+    """The inverse of evenodd_to_lexico_slab: [t, z, y, x, ...] to [eo, t, z, y, x//2, ...] for slices starting at local time t_offset."""
+    nt, Lz, Ly, Lx = slab_lexico.shape[:4]
+    t, z, y = xp.meshgrid(xp.arange(nt) + t_offset, xp.arange(Lz), xp.arange(Ly), indexing="ij")
+    slab_evenodd = xp.empty((2, nt, Lz, Ly, Lx // 2) + slab_lexico.shape[4:], slab_lexico.dtype)
+    for eo in (0, 1):
+        x_even = (eo + t + z + y) % 2 == 0
+        slab_evenodd[eo][x_even] = slab_lexico[:, :, :, 0::2][x_even]
+        slab_evenodd[eo][~x_even] = slab_lexico[:, :, :, 1::2][~x_even]
+    return slab_evenodd
+
+
+def sink_smear_evenodd(latt_info, data_evenodd, kvec, rho_T, rho_z, boost_direction="z", nt_chunk=None, in_place=False):
+    """
+    prop_smeared(x) = sum_y K(x - y) prop(y) on every time slice, done as a product of 3D FFTs.
+    NODE TEST: nt_chunk local time slices at a time (None: all of them at once), so the FFT buffers hold nt_chunk time slices instead of the whole
+    local lattice. in_place=True writes the result into data_evenodd and returns it (no output array).
+    """
+    xp = array_module(data_evenodd)
+    kernel_ft = xp.fft.fftn(boosted_gaussian_kernel(xp, latt_info.size[:3], kvec, rho_T, rho_z, boost_direction))
+    Lt = data_evenodd.shape[1]
+    nt = Lt if nt_chunk is None else nt_chunk
+    result = data_evenodd if in_place else xp.empty_like(data_evenodd)
+    for tc in range(0, Lt, nt):
+        ts = slice(tc, min(tc + nt, Lt))
+        prop_ft = xp.fft.fftn(evenodd_to_lexico_slab(xp, data_evenodd[:, ts], tc), axes=(1, 2, 3))
+        prop_ft *= kernel_ft[None, :, :, :, None, None, None, None]
+        smeared = xp.fft.ifftn(prop_ft, axes=(1, 2, 3))
+        del prop_ft
+        result[:, ts] = lexico_to_evenodd_slab(xp, smeared, tc)
+        del smeared
+    return result
+
+
+def squared_distance(xp, spatial_size, src_pos):
+    """|d|^2[z, y, x] for d = x - x_src, spatial only, each component taken to the nearest periodic image."""
+    Lx, Ly, Lz = spatial_size
+    d2 = xp.zeros((Lz, Ly, Lx))
+    for L, x0, shape in ((Lx, src_pos[0], (1, 1, Lx)), (Ly, src_pos[1], (1, Ly, 1)), (Lz, src_pos[2], (Lz, 1, 1))):
+        d = (xp.arange(L) - x0 + L // 2) % L - L // 2
+        d2 = d2 + (d**2).reshape(shape)
+    return d2
+
+
+def radius_moments_lexico(slice_lexico, src_pos):
+    """
+    Sum of |S|^2 and sum of |d|^2 |S|^2 over the sites of one time slice S[z, y, x, spin, spin, color, color] and over
+    every Dirac-color entry, returned as two numbers. d = x - x_src is spatial only.
+    """
+    xp = array_module(slice_lexico)
+    Lz, Ly, Lx = slice_lexico.shape[:3]
+    weight = (abs(slice_lexico) ** 2).sum(axis=(3, 4, 5, 6))  # [z, y, x]: |S|^2 summed over every Dirac-color entry
+    d2 = squared_distance(xp, [Lx, Ly, Lz], src_pos)
+    return float(weight.sum()), float((d2 * weight).sum())
+
+
+# ---------------- PyQUDA wrappers used by the production script ----------------
+
+
+def _check_grid(latt_info):
+    if list(latt_info.grid_size[:3]) != [1, 1, 1]:
+        raise RuntimeError(f"coulomb_smearing needs an unsplit spatial grid, got grid {latt_info.grid_size}")
+
+
+def coulomb_boosted_source(latt_info, kvec, src_pos, rho_T, rho_z, boost_direction="z"):
+    from pyquda.field import LatticePropagator
+
+    _check_grid(latt_info)
+    data = source_lexico(cupy, latt_info.size, latt_info.gt * latt_info.Lt, kvec, src_pos, rho_T, rho_z, boost_direction)
+    return LatticePropagator(latt_info, latt_info.evenodd(data, False, backend="cupy"))
+
+
+def coulomb_boosted_sink(latt_info, propagator, kvec, rho_T, rho_z, boost_direction="z", nt_chunk=None, in_place=False):
+    from pyquda.field import LatticePropagator
+
+    _check_grid(latt_info)
+    return LatticePropagator(latt_info, sink_smear_evenodd(latt_info, propagator.data, kvec, rho_T, rho_z, boost_direction, nt_chunk, in_place))
+
+
+def mean_radius(latt_info, propagator, src_pos):
+    """
+    Root-mean-square radius of a propagator around its source on the source time slice t0, with every Dirac-color entry
+    pooled into one sum before the division:
+        r^2 = sum_abcd sum_x |x - x_src|^2 |S_abcd(x)|^2 / sum_abcd sum_x |S_abcd(x)|^2,    x on the slice t = t0
+    Entries that vanish (the off-diagonal Dirac entries of a smeared source) add nothing to either sum. Summing over both
+    color indices makes r exactly gauge invariant, since only Tr S^dag S enters, so a gauge-covariant (Wuppertal) source
+    gives the same r in any gauge.
+    src_pos = [x0, y0, z0, t0] as for coulomb_boosted_source; the distance is spatial only (nearest periodic image). The
+    plane-wave boost drops out of |S|^2: the boosted Gaussian source has r = rho sqrt(3) / 2 at rho_T = rho_z = rho,
+    sqrt((2 rho_T^2 + rho_z^2) / 4) in general. For a solved propagator this is its radius on the slice t0 only.
+    A smeared source lives on the slice t0 alone, so only the GPU that holds t0 computes, on that slice in lexicographic
+    order. The one number is then shared so that every rank, including rank 0 that prints the log, returns it: every rank
+    must call this function.
+    """
+    _check_grid(latt_info)
+    t_local = src_pos[3] - latt_info.gt * latt_info.Lt
+    r = 0.0
+    if 0 <= t_local < latt_info.Lt:
+        slice_lexico = latt_info.lexico(propagator.data, False, backend="cupy")[t_local]  # [z, y, x, spin, spin, color, color]
+        norm, moment = radius_moments_lexico(slice_lexico, src_pos)
+        r = (moment / norm) ** 0.5
+    return latt_info.mpi_comm.allreduce(r)  # r on the GPU that holds t0, 0 on the others
+
+
+def coulomb_gauge_theta(latt_info, gauge):
+    """
+    Violation of the Coulomb gauge condition, normalized like QUDA's theta (compare with the last theta QUDA prints):
+        theta = sum_x Re Tr[Delta(x) Delta(x)^dag] / (3 V),   Delta = traceless part of D - D^dag,
+        D(x)  = sum_{i = x, y, z} [U_i(x - i) - U_i(x)].
+    It is zero in exact Coulomb gauge and of order 1 on an unfixed configuration. The plaquette cannot show this,
+    because it is gauge invariant. Only spatial links enter and space is not split over ranks, so no halo is needed.
+    Every rank must call it: the sum over time slices is an allreduce.
+    """
+    _check_grid(latt_info)
+    D = 0
+    for i in range(3):
+        U_i = latt_info.lexico(gauge.data[i], False, backend="cupy")  # [t, z, y, x, color, color]; direction i = x, y, z lives on array axis 3, 2, 1
+        xp = array_module(U_i)  # CHANGED from "xp = array_module(gauge.data)" before the loop: gauge.data is a numpy array on the host, U_i a cupy array, and the xp.eye below must be of U_i's kind
+        D = D + xp.roll(U_i, 1, axis=3 - i) - U_i  # U_i(x - i) - U_i(x)
+    Delta = D - D.conj().swapaxes(-1, -2)
+    Delta = Delta - (xp.trace(Delta, axis1=-2, axis2=-1) / Nc)[..., None, None] * xp.eye(Nc)
+    local = float((abs(Delta) ** 2).sum().item())
+    return latt_info.mpi_comm.allreduce(local) / (Nc * latt_info.global_volume)
+
